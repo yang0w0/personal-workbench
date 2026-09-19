@@ -6,6 +6,7 @@
   "engines": { "node": ">=20" },
   "scripts": {
     "start": "node server/server.js",
+    "check": "node --check server/server.js",
     "desktop:dev": "tauri dev --config desktop/src-tauri/tauri.conf.json",
     "desktop:build": "tauri build --config desktop/src-tauri/tauri.conf.json"
   },

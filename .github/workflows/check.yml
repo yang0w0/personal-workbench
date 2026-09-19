@@ -1,0 +1,25 @@
+name: 基础检查
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  node-syntax:
+    name: Node.js 服务语法
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: 验证 package.json
+        run: node -e "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')); console.log('package.json 有效')"
+      - name: 检查本机服务语法
+        run: npm run check

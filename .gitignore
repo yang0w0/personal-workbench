@@ -4,6 +4,10 @@ node_modules/
 # Tauri/Rust build outputs
 desktop/src-tauri/target/
 
+# Locally built Windows packages (publish release assets separately)
+*.exe
+*.msi
+
 # Local environment and editor files
 .env
 .env.*
