@@ -1,0 +1,28 @@
+# JavaScript dependencies
+node_modules/
+
+# Tauri/Rust build outputs
+desktop/src-tauri/target/
+
+# Local environment and editor files
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Personal workspace data: URLs, passwords, scripts, and local backups
+data/
+logs/
+
+# Credentials, private keys, and local secret stores
+.netrc
+credentials*
+*.pem
+*.key
+*.pfx
+*.p12
+*.kdbx
+*.sqlite
+*.db

@@ -1,0 +1,13 @@
+{
+  "name": "personal-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "description": "本地优先的个人工作台服务",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node server/server.js",
+    "desktop:dev": "tauri dev --config desktop/src-tauri/tauri.conf.json",
+    "desktop:build": "tauri build --config desktop/src-tauri/tauri.conf.json"
+  },
+  "devDependencies": { "@tauri-apps/cli": "^2.0.0" }
+}
