@@ -16,6 +16,9 @@ desktop/src-tauri/target/
 Thumbs.db
 .vscode/
 
+# Local workspace state kept by the assistant (notes, daily logs, caches)
+.workbuddy/
+
 # Personal workspace data: URLs, passwords, scripts, and local backups
 data/
 logs/
