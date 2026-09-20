@@ -25,6 +25,12 @@ labels: bug
 - Node.js 版本（如适用）：
 - 浏览器版或桌面版：
 
+## 涉及的功能（便于定位模块）
+
+- [ ] 脚本 / [ ] 网址 / [ ] 应用 / [ ] 文档
+- [ ] 待补充（扫描与同步）/ [ ] 拖拽排序 / [ ] 图标 / [ ] 分类管理 / [ ] 其他
+
 ## 补充信息
 
 <!-- 请先脱敏日志、截图与示例文件。安全问题不要在公开 Issue 中报告。 -->
+<!-- 排查建议：浏览器版问题看 server/server.js（docs/interfaces/http-api.md）；桌面版问题看 desktop/src-tauri（docs/interfaces/tauri-ipc.md）；界面问题看 app/index.html（docs/interfaces/app-ui.md）。 -->
