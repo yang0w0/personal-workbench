@@ -1,0 +1,40 @@
+---
+description: 个人工作台的模块边界规则：只改自己模块，跨模块只走接口文档
+alwaysApply: true
+---
+
+# 模块边界规则
+
+完整规则见 `AGENTS.md`；接口契约见 `docs/INTERFACES.md` 与 `docs/interfaces/`。
+
+## 动手前
+
+1. 查 `docs/INTERFACES.md` 的「任务路由表」确定本次改动属于哪个模块。
+2. 只读该模块的接口文档（`docs/interfaces/*.md`），**不要读其他模块的源码**。
+3. 只改该模块的文件。
+
+## 模块 → 文件 → 接口文档
+
+| 模块 | 文件 | 接口文档 |
+| --- | --- | --- |
+| M0 数据契约 | `data/catalog.json`（仅通过接口改） | `docs/interfaces/data-catalog.md` |
+| M1 浏览器后端 | `server/server.js` | `docs/interfaces/http-api.md` |
+| M2 快捷方式解析 | `server/shortcut.js` | `docs/interfaces/shortcut-lib.md` |
+| M3 桌面客户端 | `desktop/src-tauri/**` | `docs/interfaces/tauri-ipc.md` |
+| M4 前端界面 | `app/index.html` | `docs/interfaces/app-ui.md` |
+| M5 构建验证 | `package.json`、`*.cmd`、`.github/workflows/` | `docs/interfaces/build-and-verify.md` |
+
+## 规则
+
+- 改接口必须同一次更新对应接口文档。
+- 需要跨模块改动时先停下来说明理由，不要默默改。
+- 发现别的模块有 bug 只记录（写进 `docs/INTERFACES.md` 第 6 节），不顺手修。
+- 接口文档里不写真实数据，示例统一用 `example.com`。
+
+## 红线
+
+- 不动 `data/` 里的真实数据；测试改动过 `catalog.json` 必须还原。
+- 不提交 `data/`、`logs/`；不动 `data/密码库`、`data/备份`。
+- 不改 `127.0.0.1` 监听；不给 `server/` 加 npm 依赖；前端不引 CDN。
+- 不用 HTML5 drag-and-drop，排序用 Pointer Events。
+- 改了 `app/index.html`，桌面版必须重新编译（`build-client.cmd`）。

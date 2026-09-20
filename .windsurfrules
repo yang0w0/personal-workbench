@@ -1,0 +1,23 @@
+# Windsurf 规则
+
+规则全文见 `AGENTS.md`；接口契约见 `docs/INTERFACES.md` 与 `docs/interfaces/`。**动手前先读这两处。**
+
+## 核心：模块边界
+
+本项目按模块组织，模块之间只通过接口文档通信。**只读、只改本次任务所属模块的文件；跨模块能力查接口文档，不读对方源码；改接口同步改文档；必须跨模块时先停下来说明理由。**
+
+| 模块 | 文件 | 接口文档 |
+| --- | --- | --- |
+| M0 数据契约 | `data/catalog.json`（仅通过接口改） | `docs/interfaces/data-catalog.md` |
+| M1 浏览器后端 | `server/server.js` | `docs/interfaces/http-api.md` |
+| M2 快捷方式解析 | `server/shortcut.js` | `docs/interfaces/shortcut-lib.md` |
+| M3 桌面客户端 | `desktop/src-tauri/**` | `docs/interfaces/tauri-ipc.md` |
+| M4 前端界面 | `app/index.html` | `docs/interfaces/app-ui.md` |
+| M5 构建验证 | `package.json`、`*.cmd`、`.github/workflows/` | `docs/interfaces/build-and-verify.md` |
+
+## 红线
+
+- 不动 `data/` 里的真实数据；改过 `catalog.json` 要还原；不提交 `data/`、`logs/`。
+- 不改 `127.0.0.1` 监听；`server/` 保持零 npm 依赖；前端不引 CDN。
+- 不用 HTML5 drag-and-drop，排序用 Pointer Events。
+- 改了 `app/index.html`，桌面版需重新编译（`build-client.cmd`）。

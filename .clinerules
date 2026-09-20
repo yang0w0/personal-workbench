@@ -1,0 +1,28 @@
+# Cline 规则
+
+本仓库的 agent 规则统一写在 AGENTS.md，接口契约在 docs/INTERFACES.md。**开工前先读这两份。**
+
+## 模块边界（核心）
+
+本项目按模块组织，模块之间**只通过接口文档通信**：
+
+- M0 数据契约 → `docs/interfaces/data-catalog.md`
+- M1 浏览器后端 `server/server.js` → `docs/interfaces/http-api.md`
+- M2 快捷方式解析 `server/shortcut.js` → `docs/interfaces/shortcut-lib.md`
+- M3 桌面客户端 `desktop/src-tauri/**` → `docs/interfaces/tauri-ipc.md`
+- M4 前端界面 `app/index.html` → `docs/interfaces/app-ui.md`
+- M5 构建验证 `package.json`、`*.cmd` → `docs/interfaces/build-and-verify.md`
+
+规则：
+
+1. 只读、只改本次任务所属模块的文件，不要通读全仓库。
+2. 跨模块能力只查接口文档，不读对方源码。
+3. 改接口时同一次更新对应接口文档。
+4. 必须改到别的模块时，先停下来说明理由并等待确认。
+
+## 红线
+
+- 不动 `data/` 里的真实数据（测试改动过 `catalog.json` 要还原）；不提交 `data/`、`logs/`。
+- 不改 `127.0.0.1` 监听；不给 `server/` 加 npm 依赖；前端不引 CDN。
+- 不用 HTML5 drag-and-drop（排序用 Pointer Events）。
+- 改了 `app/index.html`，桌面版要重新编译（`build-client.cmd`）才生效。

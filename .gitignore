@@ -23,6 +23,10 @@ Thumbs.db
 data/
 logs/
 
+# Local scratch space and build/test logs (never part of the product)
+tmp/
+*.log
+
 # Credentials, private keys, and local secret stores
 .netrc
 credentials*
