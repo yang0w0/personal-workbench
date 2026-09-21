@@ -1,0 +1,5 @@
+# Windows 批处理必须是 CRLF：cmd 解析 LF-only 的 .cmd/.bat 时，
+# goto/标签寻址会在错误字节偏移处继续执行，把行劈成碎片当命令跑。
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
