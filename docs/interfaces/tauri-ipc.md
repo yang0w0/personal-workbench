@@ -63,7 +63,7 @@
 | `data_root()` | `workspace_root()/data` |
 | `catalog_path()` | `data/catalog.json` |
 | `source_join(source)` | 只接受**两层**相对路径（`分类/文件名`），且解析后必须仍在 `data/` 内，否则返回 `None` |
-| `ensure_directories()` | 创建 `脚本` `网址` `待整理` `密码库` `备份` 五个目录 |
+| `ensure_directories()` | 按 `read_catalog().categories` 里每个分类的 `folder` 逐个建目录并写 `.gitkeep`（内置默认六个：脚本 / 网址 / 应用 / 文档 / 文件夹 / 待整理） |
 | `new_id()` | `<unix秒>-<pid>-<自增计数器>` |
 | `now()` | **Unix 秒的字符串**（HTTP 端是 ISO 8601） |
 | 写盘 | 先写 `catalog.json.tmp` 再 `rename` 覆盖 |
@@ -176,3 +176,4 @@ pub fn read_icon_data_url(icon_location: &str, icon_index: i32, target: &str) ->
 | 2026-09-20 | 首次编写。冻结 10 个 IPC 命令、`NewItem` 入参、路径解析规则、CSP/窗口配置契约；记录 6 处与浏览器端的已知偏差（含 `categories` 丢失这一高风险项）；标注 `src/shortcut.rs` 已存在但未接线。 |
 | 2026-09-20 | 窗口改为无边框（`decorations:false`），系统标题栏由前端自绘；新增 `windows[].label=main` 与能力文件 `capabilities/default.json`（窗口拖拽/最小化/最大化/关闭四个权限）。前端侧契约见 app-ui.md 5.1。 |
 | 2026-09-20 | **与浏览器端契约统一**：`Catalog` 增加 `categories`（修掉写回丢分类的高风险 bug）；`Item` 增加 `target`/`arguments`/`working_directory`/`icon_location`（`url` 保留为只读兼容）；`default_categories()` 与 `M1` 对齐为同一套五个分类；`scan()` 改为按 `catalog.categories` 的 `folder` 遍历；IPC 命令补齐到 16 个并与前端 `IPC_MAP` 一一对应；`shortcut.rs` 接线参与编译。已修复项移入「已修复」留档，仅剩时间戳格式未收敛。 |
+| 2026-09-21 | 与 `M1` 对齐：`default_categories()` 新增第 5 项内置分类「文件夹」（`kind` 仍是 `file`），并给 `read_catalog()` 补上同样的**内置分类按 `key`/`folder` 补齐**逻辑（原先只补收件箱，新增的内置分类对已有 `catalog.json` 不可见）。同时修正本节 `ensure_directories()` 的描述——它实际是按 `catalog.categories` 的 `folder` 逐个创建，而不是写死的五个目录。 |

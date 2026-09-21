@@ -4,11 +4,14 @@
   模块 M4：前端界面（唯一界面，浏览器版与桌面版共用）
   接口文档：docs/interfaces/app-ui.md     总纲：docs/INTERFACES.md
 
-  本文件内部含四个子模块（按文件中出现顺序）：
+  本文件内部含五个子模块（按文件中出现顺序）：
     - head 里的 style 块     样式（含拖拽视觉 .drag-ghost / .drag-source / .dragging-active）
-    - 第一个 script 块       M4-MAIN：页面骨架、渲染、表单、双通道适配层 request()
-    - 第二个 script 块       M4-SKIN：皮肤系统（CSS 变量注入 + localStorage），原样勿动
+    - 第一个 script 块       M4-MAIN：页面骨架、渲染、表单、图标集、双通道适配层 request()
+    - 第二个 script 块       M4-SKIN：皮肤系统（五套内置皮肤 + 「自定义外观」动态皮肤，
+                              参数存 localStorage 键 pwb.skin.custom，详见 docs/interfaces/app-ui.md 5.3）
     - 第三个 script 块       M4-DRAG：图标拖拽排序（Pointer Events + FLIP），原样勿动
+    - 第四个 script 块       M4-PREF：界面偏好（侧栏是否收文字、顶栏是否收文字与两版外观、
+                              图标两版风格）+ 设置面板 + 悬停文字提示，偏好存 pwb.prefs
 
   边界：
     - 只改本文件。需要后端能力时查 docs/interfaces/http-api.md 与 tauri-ipc.md，
@@ -47,10 +50,20 @@
   --danger:#b42318; --scrim:rgba(23,32,51,.4);
   --blur:0px; --panel-border:#e5e8f0; --panel-shadow:0 1px 2px rgba(23,32,51,.05);
   --bar-bg:#fff; --bar-border:#e5e8f0; --bar-shadow:none;
+  /* 顶栏图标按钮：两版顶栏样式（圆形 / 胶囊）共用这几个变量 */
+  --bar-btn-bg:var(--soft); --bar-btn-ink:var(--soft-ink); --bar-btn-border:transparent;
+  --bar-btn-radius:99px; --bar-btn-size:38px;
+  /* 侧栏图标容器：由 M4-PREF 的「图标风格」开关决定是否垫底色（圆角方块） */
+  --nav-tile-bg:var(--soft); --nav-tile-ink:var(--soft-ink); --nav-tile-radius:11px;
+  --nav-w:200px;
+  /* 悬停文字提示（顶栏/侧栏紧凑态下显示） */
+  --tip-bg:var(--paper-solid); --tip-ink:var(--ink); --tip-border:var(--panel-border);
   --scroll-thumb:rgba(23,32,51,.22); --scroll-thumb-hover:rgba(23,32,51,.4); --scroll-track:transparent;
   --radius:12px; --radius-sm:11px; --radius-lg:14px; --radius-xs:8px;
   --sh-raised:0 6px 20px rgba(23,32,51,.10);
   --sh-float:0 18px 44px rgba(23,32,51,.28);
+  /* 自定义皮肤（M4-SKIN 的「我的图片」）专用，运行时按用户设置覆盖。 */
+  --custom-image:none; --custom-image-alpha:.65; --custom-image-blur:0px; --custom-veil:rgba(255,255,255,.38);
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -67,11 +80,32 @@ html{scrollbar-color:var(--scroll-thumb) var(--scroll-track);scrollbar-width:thi
 body[data-skin="liquid-glass"]::before,body[data-skin="midnight-glass"]::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none}
 body[data-skin="liquid-glass"]::before{background:radial-gradient(60rem 22rem at 46% -6%,rgba(255,132,96,.55),transparent 72%),radial-gradient(46rem 32rem at 6% 8%,rgba(255,118,88,.5),transparent 68%),radial-gradient(40rem 34rem at 96% 14%,rgba(178,140,255,.4),transparent 70%),radial-gradient(52rem 40rem at 50% 108%,rgba(255,168,118,.45),transparent 72%)}
 body[data-skin="midnight-glass"]::before{background:radial-gradient(60rem 22rem at 46% -6%,rgba(112,102,255,.35),transparent 72%),radial-gradient(46rem 32rem at 8% 6%,rgba(99,91,255,.35),transparent 70%),radial-gradient(42rem 36rem at 94% 16%,rgba(56,178,230,.22),transparent 70%),radial-gradient(52rem 40rem at 50% 110%,rgba(150,80,255,.3),transparent 72%)}
+/* 自定义皮肤：用户导入的图片当底，铺在最下层（z-index:-1 的伪元素在 body 背景之上、内容之下）。
+   四个变量都由 M4-SKIN 注入 —— --custom-image / --custom-image-alpha /
+   --custom-image-blur / --custom-veil；transform:scale 是为了让模糊不露出视口边缘。 */
+body[data-skin="custom"]::before,body[data-skin="custom"]::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none}
+body[data-skin="custom"]::before{background-image:var(--custom-image);background-size:cover;background-position:center;background-repeat:no-repeat;opacity:var(--custom-image-alpha);filter:blur(var(--custom-image-blur));transform:scale(1.06)}
+body[data-skin="custom"]::after{background:var(--custom-veil)}
+/* 新增两套皮肤的背景层（变量表在 M4-SKIN 的 SKINS 注册表里）：
+   - graphite-dusk 参考「简约 B 端」的深色大图氛围：冷青天光 + 深蓝山影 + 一点暖光
+   - sakura-mist   参考粉色界面：柔白高光 + 粉调光斑，压在粉色渐变上做出层次 */
+body[data-skin="graphite-dusk"]::before,body[data-skin="sakura-mist"]::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none}
+body[data-skin="graphite-dusk"]::before{background:
+  radial-gradient(58rem 26rem at 50% -8%,rgba(96,178,196,.30),transparent 70%),
+  radial-gradient(44rem 30rem at 4% 10%,rgba(46,72,120,.40),transparent 68%),
+  radial-gradient(40rem 26rem at 98% 22%,rgba(122,142,192,.18),transparent 70%),
+  radial-gradient(60rem 30rem at 50% 108%,rgba(74,98,74,.32),transparent 72%)}
+body[data-skin="sakura-mist"]::before{background:
+  radial-gradient(52rem 24rem at 40% -6%,rgba(255,255,255,.72),transparent 72%),
+  radial-gradient(44rem 30rem at 6% 12%,rgba(255,188,210,.55),transparent 70%),
+  radial-gradient(40rem 32rem at 96% 18%,rgba(236,170,205,.42),transparent 72%),
+  radial-gradient(56rem 36rem at 50% 110%,rgba(255,214,228,.62),transparent 74%)}
 h1{margin:0;font-size:19px;font-weight:800;letter-spacing:.4px}
 h2{margin:0;font-size:15px;font-weight:700}
 code{font-family:Consolas,"Courier New",monospace;font-size:.92em;padding:1px 5px;border-radius:5px;background:var(--soft);color:var(--soft-ink)}
 button{font:inherit;font-weight:600;cursor:pointer;border:0;border-radius:9px;padding:9px 13px;color:var(--on-brand);background:var(--brand);transition:filter .15s ease,transform .15s ease,box-shadow .15s ease,border-color .15s ease}
 button:hover{filter:brightness(1.06)}
+button:disabled{opacity:.55;cursor:not-allowed;filter:none}
 .secondary{background:var(--soft);color:var(--soft-ink)}
 .add{border-radius:99px}
 .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -81,41 +115,109 @@ textarea{min-height:96px;resize:vertical;font-family:Consolas,"Courier New",mono
 select{appearance:none;padding-right:32px;
   background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
   background-position:calc(100% - 16px) 16px,calc(100% - 11px) 16px;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+/* 下拉弹层里的选项不吃 select 的底色：option 默认 background 是透明的，
+   弹层会回退到自己的默认底色（浅色主题下是白的），文字却继承皮肤的 --ink。
+   深色皮肤下 --ink 是近白色 → 白底白字，下拉看起来是空的。
+   所以 option 必须自己带不透明底色，别依赖继承。 */
+select option{background:var(--paper-solid);color:var(--ink)}
 label{display:block;margin:0 0 5px;font-weight:600;font-size:12.5px;color:var(--muted)}
 
 /* 顶栏：玻璃皮肤下是吸顶磨砂条；配色走 --bar-* 变量，各皮肤单独定义。
    桌面端为无边框窗口，本行同时是窗口拖拽区（data-tauri-drag-region）。 */
-header{min-height:72px;padding:0 32px;display:flex;justify-content:space-between;align-items:center;gap:16px;position:sticky;top:0;z-index:5;background:var(--bar-bg);border-bottom:1px solid var(--bar-border);box-shadow:var(--bar-shadow);backdrop-filter:blur(var(--blur)) saturate(1.6);-webkit-backdrop-filter:blur(var(--blur)) saturate(1.6);user-select:none}
+header{min-height:72px;padding:0 26px;display:flex;justify-content:space-between;align-items:center;gap:16px;position:sticky;top:0;z-index:5;background:var(--bar-bg);border-bottom:1px solid var(--bar-border);box-shadow:var(--bar-shadow);backdrop-filter:blur(var(--blur)) saturate(1.6);-webkit-backdrop-filter:blur(var(--blur)) saturate(1.6);user-select:none}
 /* 窗口拖拽热区：撑满顶栏空白，只在桌面端可见的外观为空。 */
 .drag-space{flex:1;align-self:stretch;min-width:24px}
 /* 自绘窗口按钮：仅桌面端（无系统边框）显示，样式跟随皮肤变量。 */
 .win-buttons{display:none;align-items:center;gap:6px;flex:none;margin-left:2px}
 body.is-desktop .win-buttons{display:flex}
-.win-btn{min-width:36px;padding:7px 9px;line-height:1;font-size:12px;border-radius:var(--radius-xs);background:var(--soft);color:var(--soft-ink)}
-.win-btn:hover{filter:brightness(1.08)}
+.win-btn{display:grid;place-items:center;width:34px;height:30px;padding:0;line-height:1;border-radius:var(--radius-xs);background:transparent;color:var(--soft-ink)}
+.win-btn svg{width:15px;height:15px}
+.win-btn:hover{background:var(--soft);filter:none}
 .win-btn.close:hover{background:var(--danger);color:#fff;filter:none}
 .brand{display:flex;align-items:center;gap:12px;min-width:0}
-.brand-mark{display:grid;place-items:center;width:46px;height:46px;border-radius:16px;flex:none;background:linear-gradient(135deg,var(--brand),var(--brand-line));color:var(--on-brand);font-size:20px;font-weight:800;box-shadow:0 6px 18px var(--brandwash)}
+/* 品牌标：顶栏与侧栏共用同一个类。默认画「个」字几何标（SVG 由 M4-MAIN 的
+   BRAND_GLYPH 注入），点一下可以换成自己的照片 / Logo——照片铺满整块、跟着
+   圆角裁剪，hover 时盖一层 --scrim 蒙层表示「这里能点」。
+   注意：桌面端顶栏 .brand 带 data-tauri-drag-region，但本元素带 role=button，
+   Tauri 2 的规则是「可点击元素挡住拖动」，所以点击不会被窗口拖动吃掉。 */
+.brand-mark{--brand-glyph:26px;position:relative;display:grid;place-items:center;width:46px;height:46px;border-radius:16px;flex:none;background:linear-gradient(135deg,var(--brand),var(--brand-line));color:var(--on-brand);overflow:hidden;cursor:pointer;box-shadow:0 6px 18px var(--brandwash);transition:transform .15s ease,box-shadow .15s ease}
+.brand-mark>svg{width:var(--brand-glyph);height:var(--brand-glyph)}
+.brand-mark.has-photo>svg{display:none}
+.brand-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.brand-mark::after{content:"";position:absolute;inset:0;background:var(--scrim);opacity:0;transition:opacity .15s ease;pointer-events:none}
+.brand-mark:hover{transform:translateY(-1px);box-shadow:0 9px 22px var(--brandwash)}
+.brand-mark:hover::after{opacity:.24}
+.brand-mark:active{transform:translateY(0)}
+.brand-mark:focus-visible{outline:2px solid var(--brand);outline-offset:3px}
+/* 顶栏右侧按钮组。默认只显示图标，悬停由 M4-PREF 补文字提示；
+   两版外观由 body[data-bar-style] 切换（circle 各自独立圆形 / capsule 收进一枚胶囊）。 */
+.actions{flex-wrap:nowrap}
+.bar-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:var(--bar-btn-size);height:var(--bar-btn-size);padding:0 11px;background:var(--bar-btn-bg);color:var(--bar-btn-ink);border:1px solid var(--bar-btn-border);border-radius:var(--bar-btn-radius);font-size:13px;font-weight:600;white-space:nowrap;flex:none}
+.bar-btn svg{width:18px;height:18px;flex:none}
+.bar-btn:hover{background:var(--brandwash);color:var(--brand-ink);filter:none}
+.bar-btn.primary{background:var(--brand);color:var(--on-brand)}
+.bar-btn.primary:hover{background:var(--brand);color:var(--on-brand);filter:brightness(1.07)}
+.bar-btn.icon-only{min-width:var(--bar-btn-size);padding:0}
+.bar-label{display:none}
+body.bar-labels .bar-label{display:inline}
+body.bar-labels .bar-btn.icon-only{padding:0 13px}
+body[data-bar-style="capsule"] .actions{background:var(--paper-solid);border:1px solid var(--panel-border);border-radius:99px;padding:5px;gap:4px;box-shadow:var(--panel-shadow)}
+body[data-bar-style="capsule"] .bar-btn{background:transparent;border-color:transparent;height:32px;min-width:34px;padding:0 10px}
+body[data-bar-style="capsule"] .bar-btn:hover{background:var(--brandwash)}
+body[data-bar-style="capsule"] .bar-btn.primary{background:var(--brand);color:var(--on-brand)}
 main{max-width:1180px;padding:0 24px;margin:22px auto}
 .status{width:max-content;max-width:100%;padding:9px 16px;border:1px solid var(--panel-border);border-radius:99px;background:var(--paper);color:var(--muted);font-size:12.5px;backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur))}
 .status.ok{color:var(--ok);border-color:var(--ok-line);background:var(--ok-bg)}
 .status.bad{color:var(--danger);border-color:var(--danger)}
-.workspace{display:grid;grid-template-columns:200px minmax(0,1fr);gap:20px;margin-top:18px;align-items:start}
+.workspace{display:grid;grid-template-columns:var(--nav-w) minmax(0,1fr);gap:20px;margin-top:18px;align-items:start}
 .sidebar,section{background:var(--paper);border:1px solid var(--panel-border);border-radius:var(--radius);box-shadow:var(--panel-shadow);backdrop-filter:blur(var(--blur)) saturate(1.4);-webkit-backdrop-filter:blur(var(--blur)) saturate(1.4)}
-.sidebar{height:max-content;padding:16px 12px;position:sticky;top:88px;display:flex;flex-direction:column;gap:2px}
+.sidebar{height:max-content;padding:14px 10px;position:sticky;top:88px;display:flex;flex-direction:column;gap:3px}
 /* 侧栏顶部品牌标（保留侧栏 ID 契约，样式跟随皮肤变量） */
-.sidebar .brand-mark{margin:0 auto 8px}
+.sidebar .brand-mark{margin:0 auto 10px}
+.nav{display:flex;flex-direction:column;gap:3px}
 .nav-title{padding:6px 10px;font-weight:700;font-size:12px;color:var(--muted)}
-.nav-link{display:flex;gap:10px;align-items:center;width:100%;padding:9px 12px;border-radius:10px;background:transparent;color:var(--ink);text-align:left;font-size:13.5px;font-weight:500}
-.nav-link:hover{background:var(--brandwash);filter:none}
+.nav-link{display:flex;gap:11px;align-items:center;width:100%;padding:8px 10px;border-radius:12px;background:transparent;color:var(--ink);text-align:left;font-size:13.5px;font-weight:500;transition:background .15s ease,color .15s ease}
+.nav-link:hover{background:var(--brandwash);color:var(--brand-ink);filter:none}
 .nav-link.active{background:var(--brand);color:var(--on-brand);font-weight:600}
-.nav-symbol{width:18px;text-align:center;font-size:15px;flex:none;opacity:.9}
+/* 图标容器：plain 风格下无底色，tile 风格下垫圆角方块（见下方 data-icon-style 规则）。 */
+.nav-icon{display:grid;place-items:center;width:30px;height:30px;flex:none;border-radius:var(--nav-tile-radius);background:transparent;color:inherit}
+.nav-icon svg{width:19px;height:19px}
+.nav-symbol{width:30px;height:30px;text-align:center;font-size:15px;line-height:30px;flex:none;opacity:.9}
 .nav-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nav-count{font-size:11px;line-height:17px;height:17px;padding:0 6px;border-radius:99px;background:var(--soft);color:var(--muted);flex:none}
 .nav-link.active .nav-count{background:var(--on-brand);color:var(--brand)}
 .nav-sep{height:1px;background:var(--line);margin:8px 10px}
-.nav-add{display:flex;gap:10px;align-items:center;width:100%;padding:9px 12px;border-radius:10px;background:transparent;color:var(--muted);font-size:13px;font-weight:500;border:1px dashed var(--line-strong)}
+.nav-add{display:flex;gap:11px;align-items:center;width:100%;padding:8px 10px;border-radius:12px;background:transparent;color:var(--muted);font-size:13px;font-weight:500;border:1px dashed var(--line-strong)}
 .nav-add:hover{color:var(--brand-ink);border-color:var(--brand-line);background:var(--brandwash)}
+
+/* 图标风格（M4-PREF 的「图标风格」开关，落在 body[data-icon-style]）：
+   - plain（默认）：极简线稿，图标不垫底，选中态靠整行底色区分
+   - tile       ：图标垫一个圆角方块，选中态由图标块自己染色 */
+body[data-icon-style="tile"] .nav-icon{background:var(--nav-tile-bg);color:var(--nav-tile-ink)}
+body[data-icon-style="tile"] .nav-link:hover .nav-icon{background:var(--brandwash);color:var(--brand-ink)}
+body[data-icon-style="tile"] .nav-link.active{background:transparent;color:var(--ink)}
+body[data-icon-style="tile"] .nav-link.active .nav-icon{background:var(--brand);color:var(--on-brand)}
+body[data-icon-style="tile"] .nav-link.active .nav-text{font-weight:700;color:var(--ink)}
+body[data-icon-style="tile"] .nav-link.active .nav-count{background:var(--brandwash);color:var(--brand-ink)}
+
+/* 紧凑侧栏（M4-PREF 的「侧栏」开关）：只留图标，宽度收到 68px。
+   窄屏（<=760px）本来就是横排布局，不套用紧凑规则。 */
+@media(min-width:761px){
+  body.nav-compact{--nav-w:68px}
+  body.nav-compact .sidebar{align-items:center}
+  body.nav-compact .sidebar .brand-mark{--brand-glyph:21px;width:38px;height:38px;border-radius:13px}
+  body.nav-compact .nav-title,
+  body.nav-compact .nav-text,
+  body.nav-compact .nav-count{display:none}
+  body.nav-compact .nav-sep{margin:8px auto;width:26px}
+  body.nav-compact .nav-link,
+  body.nav-compact .nav-add{justify-content:center;gap:0;padding:8px 0}
+}
+
+/* 悬停文字提示（由 M4-PREF 生成，坐标走 CSSOM）。只在「信息被折叠」的地方出现：
+   紧凑侧栏、只显示图标的顶栏；展开状态下不会冒出来。 */
+.hover-tip{position:fixed;z-index:40;max-width:260px;padding:6px 10px;border-radius:9px;background:var(--tip-bg);color:var(--tip-ink);border:1px solid var(--tip-border);box-shadow:var(--sh-raised);font-size:12.5px;font-weight:600;line-height:1.45;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .12s ease}
+.hover-tip.on{opacity:1}
 
 /* 内容区 */
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
@@ -124,13 +226,13 @@ main{max-width:1180px;padding:0 24px;margin:22px auto}
 .section-note,.empty,.card-meta,.meta{font-size:12px;color:var(--muted)}
 section{padding:20px}
 .icon-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(106px,1fr));gap:12px;min-height:50px}
-.icon-card{position:relative;display:flex;min-height:106px;align-items:center;justify-content:center;flex-direction:column;gap:7px;padding:12px 8px 10px;background:var(--paper-solid);color:var(--ink);border:1px solid var(--panel-border);border-radius:var(--radius-sm);text-align:center;box-shadow:var(--panel-shadow);cursor:grab;user-select:none}
-.icon-card:hover,.icon-card:focus{border-color:var(--brand-line);background:var(--paper-hover);box-shadow:var(--sh-raised);transform:translateY(-1px);filter:none;outline:none}
+.icon-card{position:relative;display:flex;min-height:96px;align-items:center;justify-content:center;flex-direction:column;gap:4px;padding:12px 6px 10px;background:transparent;color:var(--ink);border:1px solid transparent;border-radius:var(--radius-sm);text-align:center;cursor:grab;user-select:none}
+.icon-card:hover,.icon-card:focus{background:var(--paper-hover);transform:translateY(-1px);filter:none;outline:none}
 .item-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;font-size:20px;font-weight:700;color:var(--on-brand);background:var(--brandwash);overflow:hidden}
 .item-icon img{width:100%;height:100%;object-fit:contain}
 .item-icon.letter{color:#fff}
-.card-title,.card-meta{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.card-title{font-size:12px;font-weight:600}
+.card-meta{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-title{font-size:12px;font-weight:600;line-height:1.35;max-width:100%;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;word-break:break-word}
 .card-meta{font-size:11px;color:var(--muted)}
 
 /* 待补充列表 */
@@ -178,14 +280,17 @@ section{padding:20px}
 .hero-slot{position:relative;display:grid;place-items:center;width:58px;height:58px;border-radius:var(--radius);overflow:hidden;background:var(--brandwash);border:1px dashed var(--brand-line);cursor:pointer}
 .hero-slot:hover{border-color:var(--brand);filter:none}
 .hero-slot img{width:100%;height:100%;object-fit:contain;background:var(--paper-solid)}
-.hero-slot .glyph{font-size:24px;font-weight:700;color:var(--brand)}
+.hero-slot .glyph{display:grid;place-items:center;color:var(--brand)}
+.hero-slot .glyph svg{width:26px;height:26px}
 .hero-slot .pick{position:absolute;left:0;right:0;bottom:0;height:16px;display:grid;place-items:center;font-size:9.5px;font-weight:600;letter-spacing:.5px;color:var(--on-brand);background:var(--scrim)}
 .hero-body{display:grid;gap:6px;min-width:0}
 .tip-inline{font-size:11.5px;color:var(--muted);margin:0}
 
 /* 分段切换（代替下拉框选类型） */
 .segmented{display:flex;gap:3px;padding:3px;margin:0 18px;border-radius:var(--radius-sm);background:var(--soft);flex:none}
-.segmented button{flex:1;padding:7px 4px;border-radius:var(--radius-xs);font-size:13px;font-weight:600;color:var(--muted);background:transparent;border:1px solid transparent}
+.segmented button{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:7px 4px;border-radius:var(--radius-xs);font-size:13px;font-weight:600;color:var(--muted);background:transparent;border:1px solid transparent}
+.seg-icon{display:grid;place-items:center;flex:none}
+.seg-icon svg{width:16px;height:16px}
 .segmented button:hover{color:var(--ink);filter:none}
 .segmented button.on{background:var(--paper-solid);color:var(--brand-ink);box-shadow:var(--panel-shadow)}
 
@@ -211,8 +316,17 @@ details.more .more-body{display:grid;gap:11px;padding:12px}
 .kind-card{display:grid;gap:2px;padding:10px 11px;border-radius:var(--radius-sm);text-align:left;background:var(--paper-solid);color:var(--ink);border:1px solid var(--panel-border)}
 .kind-card:hover{border-color:var(--brand-line);background:var(--paper-hover);filter:none}
 .kind-card.on{border-color:var(--brand);background:var(--brandwash)}
-.kind-card b{font-size:12.5px}
+.kind-card b{display:flex;align-items:center;gap:6px;font-size:12.5px}
+.kind-icon{display:grid;place-items:center;flex:none}
+.kind-icon svg{width:15px;height:15px}
 .kind-card span{font-size:11px;color:var(--muted);line-height:1.4}
+
+/* 图标选择器（新建分类、归类时挑分类图标） */
+.icon-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:6px;padding:8px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);background:var(--paper-solid);max-height:172px;overflow:auto}
+.icon-pick button{display:grid;place-items:center;height:34px;padding:0;border-radius:9px;background:transparent;color:var(--muted);border:1px solid transparent}
+.icon-pick button svg{width:18px;height:18px}
+.icon-pick button:hover{background:var(--brandwash);color:var(--brand-ink);filter:none}
+.icon-pick button.on{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}
 
 /* 开始菜单选择器 */
 .pick-toolbar{display:flex;gap:10px;align-items:center;padding:11px 18px;border-bottom:1px solid var(--line)}
@@ -249,6 +363,49 @@ details.more .more-body{display:grid;gap:11px;padding:12px}
 .skin-option:hover{background:var(--brandwash)}
 .skin-option.active{background:var(--brand);color:var(--on-brand)}
 .skin-swatch{width:16px;height:16px;border-radius:50%;border:1px solid rgba(0,0,0,.15);flex:none}
+.skin-menu .skin-menu-sep{height:1px;background:var(--line);margin:6px 4px}
+.skin-option.setup{color:var(--muted);font-weight:500}
+/* 自定义外观面板（M4-SKIN）：滑块一律走变量，任意皮肤下都成立 */
+.skin-form{gap:16px}
+.skin-row{display:grid;grid-template-columns:minmax(0,1fr) 54px;gap:12px;align-items:center}
+.skin-row output{font-size:11.5px;color:var(--muted);text-align:right}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:22px;padding:0;border:0;background:transparent}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:99px;background:var(--soft);border:1px solid var(--line)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;margin-top:-6px;border-radius:50%;background:var(--brand);border:2px solid var(--paper-solid);box-shadow:var(--panel-shadow)}
+input[type=range]:focus{outline:none;border-color:transparent;box-shadow:none}
+input[type=range]:focus::-webkit-slider-runnable-track{border-color:var(--brand-line)}
+input[type=range]::-moz-range-track{height:6px;border-radius:99px;background:var(--soft)}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--brand);border:2px solid var(--paper-solid)}
+input[type=color]{width:100%;height:34px;padding:2px;border:1px solid var(--line-strong);border-radius:var(--radius-xs);background:var(--paper-solid);cursor:pointer}
+#skinBase{margin:0}
+#skinBase button{font-size:12.5px}
+.skin-preview{position:relative;display:grid;place-items:center;height:118px;border-radius:var(--radius-sm);border:1px dashed var(--line-strong);background-color:var(--wash);background-image:var(--custom-image);background-size:cover;background-position:center;background-repeat:no-repeat;overflow:hidden;color:var(--muted);font-size:12px}
+.skin-preview .skin-preview-veil{position:absolute;inset:0;background:var(--custom-veil);pointer-events:none}
+.skin-preview > span{position:relative;z-index:1}
+
+/* 设置面板（M4-PREF）：分区排列，每块一个小标题 */
+.settings-body{gap:18px}
+.set-block{display:grid;gap:9px;padding:14px 15px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--paper-hover)}
+.set-block > h3{margin:0;font-size:13px;font-weight:700;color:var(--soft-ink)}
+.set-block .segmented{margin:0}
+.set-block .tip{margin:0;font-size:11.5px;color:var(--muted)}
+.set-sub{display:grid;gap:7px;margin-top:3px}
+/* 皮肤网格：一格一套皮肤，点一下立即换 */
+.skin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(134px,1fr));gap:10px}
+.skin-card{display:grid;gap:7px;padding:9px;border-radius:var(--radius-sm);background:var(--paper-solid);border:1px solid var(--panel-border);color:var(--ink);text-align:left;font-weight:600}
+.skin-card:hover{border-color:var(--brand-line);background:var(--paper-hover);filter:none;transform:translateY(-1px)}
+.skin-card.on{border-color:var(--brand);box-shadow:0 0 0 2px var(--brandwash)}
+.skin-card .strip{display:flex;height:34px;border-radius:9px;overflow:hidden;border:1px solid var(--line)}
+.skin-card .strip i{flex:1}
+.skin-card .name{display:flex;align-items:center;gap:6px;font-size:12.5px;line-height:1.3}
+.skin-card .dot{width:10px;height:10px;border-radius:50%;flex:none;border:1px solid rgba(0,0,0,.16)}
+.skin-card .state{font-size:11px;color:var(--brand-ink);font-weight:600;height:14px}
+/* 图标风格预览：把几枚图标按当前风格排一排 */
+.icon-demo{display:flex;gap:9px;align-items:center;padding:10px 12px;border-radius:var(--radius-sm);border:1px dashed var(--line-strong);background:var(--paper-solid)}
+.icon-demo .nav-icon{width:32px;height:32px}
+.icon-demo .nav-icon svg{width:19px;height:19px}
+.icon-demo .demo-active{border-radius:var(--nav-tile-radius)}
+body[data-icon-style="tile"] .icon-demo .demo-active{background:var(--brand);color:var(--on-brand)}
 
 /* 拖拽视觉：任何皮肤下都保持可读 */
 .icon-card.dragging{opacity:.4}
@@ -261,20 +418,23 @@ body.dragging-active .icon-card.drag-ghost{position:fixed;z-index:60;margin:0;po
 
 @media(max-width:760px){
   header{min-height:0;padding:14px;align-items:flex-start;gap:10px;flex-direction:column;position:static}
+  header .brand{width:100%}
   main{padding:0 14px}
   .workspace{grid-template-columns:1fr}
-  .sidebar{position:static;display:flex;flex-direction:row;overflow:auto;padding:8px;align-items:center}
-  .sidebar .brand-mark{margin:0 6px 0 0;width:36px;height:36px;border-radius:12px;font-size:16px}
+  .sidebar{position:static;flex-direction:row;overflow:auto;padding:8px;align-items:center}
+  .sidebar .brand-mark{--brand-glyph:20px;margin:0 6px 0 0;width:36px;height:36px;border-radius:12px}
+  .nav{flex-direction:row;gap:6px;align-items:center}
   .nav-title,.nav-sep{display:none}
   .nav-link,.nav-add{width:auto;white-space:nowrap}
+  .actions{flex-wrap:wrap;width:100%}
   .grid{grid-template-columns:1fr}.wide{grid-column:auto}
   .pick-body{grid-template-columns:1fr}
   .pick-detail{border-top:1px solid var(--line);max-height:30vh}
   .pick-list{max-height:34vh;border-right:0}
 }
 </style></head><body>
-<header><div class="brand" data-tauri-drag-region><span class="brand-mark" aria-hidden="true">工</span><h1 data-tauri-drag-region>个人工作台</h1></div><div class="drag-space" data-tauri-drag-region></div><div class="actions"><div class="skin-wrap"><button class="secondary" id="skinToggle" aria-haspopup="true">◑ 皮肤</button><div class="skin-menu" id="skinMenu" hidden></div></div><button class="secondary" id="connect">重新连接</button><button class="secondary" id="scan">同步文件夹</button><button class="add" id="openAdd">＋ 新增</button></div><div class="win-buttons"><button type="button" class="win-btn" id="winMin" title="最小化" aria-label="最小化">─</button><button type="button" class="win-btn" id="winMax" title="最大化 / 还原" aria-label="最大化或还原">▢</button><button type="button" class="win-btn close" id="winClose" title="关闭" aria-label="关闭窗口">✕</button></div></header>
-<main><div id="status" class="status">正在检查本地服务……</div><div class="workspace"><aside class="sidebar"><div class="brand-mark" aria-hidden="true">工</div><div class="nav-title">内容分类</div><nav id="nav" class="nav"></nav><div class="nav-sep"></div><button class="nav-add" id="openNewCategory"><span class="nav-symbol">＋</span><span class="nav-text">新建分类</span></button></aside><div class="grid" id="content"></div></div></main>
+<header><div class="brand" data-tauri-drag-region><span class="brand-mark" role="button" tabindex="0" title="点击更换头像 / Logo" aria-label="更换头像或 Logo"></span><h1 data-tauri-drag-region>个人工作台</h1></div><div class="drag-space" data-tauri-drag-region></div><div class="actions" id="barActions"><div class="skin-wrap"><button class="bar-btn icon-only" id="skinToggle" data-icon="palette" data-tip="外观皮肤" aria-haspopup="true"><span class="bar-ic"></span><span class="bar-label">皮肤</span></button><div class="skin-menu" id="skinMenu" hidden></div></div><button class="bar-btn icon-only" id="connect" data-icon="refresh" data-tip="重新连接"><span class="bar-ic"></span><span class="bar-label">重新连接</span></button><button class="bar-btn icon-only" id="scan" data-icon="sync" data-tip="同步文件夹"><span class="bar-ic"></span><span class="bar-label">同步文件夹</span></button><button class="bar-btn icon-only primary" id="openAdd" data-icon="plus" data-tip="新增内容"><span class="bar-ic"></span><span class="bar-label">新增</span></button><button class="bar-btn icon-only" id="openSettings" data-icon="sliders" data-tip="设置"><span class="bar-ic"></span><span class="bar-label">设置</span></button></div><div class="win-buttons"><button type="button" class="win-btn" id="winMin" title="最小化" aria-label="最小化" data-icon="min"></button><button type="button" class="win-btn" id="winMax" title="最大化 / 还原" aria-label="最大化或还原" data-icon="max"></button><button type="button" class="win-btn close" id="winClose" title="关闭" aria-label="关闭窗口" data-icon="close"></button></div></header>
+<main><div class="workspace"><aside class="sidebar"><div class="brand-mark" role="button" tabindex="0" title="点击更换头像 / Logo" aria-label="更换头像或 Logo"></div><div class="nav-title">内容分类</div><nav id="nav" class="nav"></nav><div class="nav-sep"></div><button class="nav-add" id="openNewCategory" data-icon="folder-plus" data-tip="新建分类"><span class="nav-icon"></span><span class="nav-text">新建分类</span></button><button class="nav-add" type="button" data-action="toggle-nav" data-icon="panel-left" data-tip="收起 / 展开侧栏文字"><span class="nav-icon"></span><span class="nav-text">收起文字</span></button><button class="nav-add" type="button" data-action="settings" data-icon="sliders" data-tip="设置"><span class="nav-icon"></span><span class="nav-text">设置</span></button></aside><div class="grid" id="content"></div></div></main>
 
 <!-- ============ 编辑器：一条内容只需要填它所属类型该填的东西 ============ -->
 <div class="modal" id="editor" hidden><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
@@ -283,7 +443,9 @@ body.dragging-active .icon-card.drag-ghost{position:fixed;z-index:60;margin:0;po
     <div class="field"><label for="assignCategory">归到哪个分类</label><select id="assignCategory"></select></div>
     <div class="field" id="assignNew" hidden>
       <label for="assignNewName">新分类名称</label>
-      <div class="row2"><input id="assignNewName" placeholder="例如：游戏"><input id="assignNewSymbol" maxlength="2" placeholder="符号 ▤"></div>
+      <input id="assignNewName" placeholder="例如：游戏">
+      <label>图标</label>
+      <div class="icon-pick" id="assignNewSymbolPick"></div>
       <p class="tip">保存时会自动在 <code>data/</code> 下建好这个文件夹，之后往里丢文件、点「同步文件夹」就能收录。</p>
       <div class="kind-cards" id="assignNewKind"></div>
     </div>
@@ -304,6 +466,7 @@ body.dragging-active .icon-card.drag-ghost{position:fixed;z-index:60;margin:0;po
     <!-- 网址 -->
     <div class="kfields" data-kind="link">
       <div class="field"><label for="url">网址</label><input id="url" type="text" placeholder="https://example.com"><p class="tip">只填域名也行，保存时会自动补上 https://。图标用域名首字母，想换可以在卡片上右键</p></div>
+      <div class="field"><label for="browserPick">用哪个浏览器打开</label><select id="browserPick"></select><div class="row-input" id="browserCustom" hidden><input id="browserPath" placeholder="C:\Program Files\某浏览器\browser.exe"></div><p class="tip" id="browserTip">默认交给系统默认浏览器；这里选过之后只对这条网址生效。</p></div>
     </div>
 
     <!-- 应用（快捷方式） -->
@@ -338,7 +501,8 @@ body.dragging-active .icon-card.drag-ghost{position:fixed;z-index:60;margin:0;po
 <div class="modal" id="categoryModal" hidden><div class="dialog narrow" role="dialog" aria-modal="true">
   <div class="dialog-head"><div><h2>新建分类</h2><p class="hint">会在 <code>data/</code> 下自动建好同名文件夹</p></div><button class="icon-button" id="categoryClose" aria-label="关闭">×</button></div>
   <div class="dialog-body">
-    <div class="row2"><div class="field"><label for="categoryName">分类名称</label><input id="categoryName" placeholder="例如：游戏" maxlength="24"></div><div class="field"><label for="categorySymbol">符号</label><input id="categorySymbol" maxlength="2" placeholder="▤"></div></div>
+    <div class="field"><label for="categoryName">分类名称</label><input id="categoryName" placeholder="例如：游戏" maxlength="24"></div>
+    <div class="field"><label>图标</label><div class="icon-pick" id="categorySymbolPick"></div></div>
     <div class="field"><label>这个分类主要装什么</label><div class="kind-cards" id="categoryKinds"></div></div>
   </div>
   <div class="dialog-foot"><p class="notice" id="categoryNotice"></p><div class="foot-actions"><button class="secondary" id="categoryCancel">取消</button><button id="categorySave">创建分类</button></div></div>
@@ -347,6 +511,91 @@ body.dragging-active .icon-card.drag-ghost{position:fixed;z-index:60;margin:0;po
 <div class="context-menu" id="contextMenu" hidden></div>
 <input id="iconFile" type="file" accept="image/*" hidden>
 <input id="scriptFile" type="file" hidden>
+<input id="brandFile" type="file" accept="image/*" hidden>
+
+<!-- ============ 自定义外观（M4-SKIN）：导入自己的图片当底 + 调透明度 ============ -->
+<div class="modal" id="skinCustom" hidden><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="skinCustomTitle">
+  <div class="dialog-head"><div><h2 id="skinCustomTitle">自定义外观</h2><p class="hint">用你自己的图片当底，透明度、蒙层、模糊都能单独调；改动即时生效并存在本机</p></div><button class="icon-button" id="skinCustomClose" aria-label="关闭">×</button></div>
+  <div class="dialog-body skin-form">
+    <div class="field">
+      <label>背景图片</label>
+      <div class="skin-preview" id="skinPreview"><div class="skin-preview-veil"></div><span id="skinPreviewTip">还没有图片，先选一张</span></div>
+      <div class="row-input"><button class="secondary" id="skinPickImage" type="button">选择图片…</button><button class="secondary" id="skinClearImage" type="button">清除图片</button></div>
+      <p class="tip">横图效果最好。保存前会自动压到最长边 1920px 并转成 JPEG，透明区域按底色补齐。</p>
+    </div>
+    <div class="field">
+      <label>底色基调</label>
+      <div class="segmented" id="skinBase">
+        <button type="button" data-base="light" class="on">浅色底 · 深字</button>
+        <button type="button" data-base="dark">深色底 · 浅字</button>
+      </div>
+      <p class="tip" id="skinBaseTip">决定文字颜色，以及图片透出的底色。</p>
+    </div>
+    <div class="field"><label for="skinImageAlpha">图片不透明度</label><div class="skin-row"><input type="range" id="skinImageAlpha" min="0" max="100" step="1" value="65"><output id="skinImageAlphaOut">65%</output></div></div>
+    <div class="field"><label for="skinVeil">蒙层浓度</label><div class="skin-row"><input type="range" id="skinVeil" min="0" max="100" step="1" value="38"><output id="skinVeilOut">38%</output></div><p class="tip">图片太花时调高，文字会更好认。</p></div>
+    <div class="field"><label for="skinImageBlur">图片模糊</label><div class="skin-row"><input type="range" id="skinImageBlur" min="0" max="40" step="1" value="0"><output id="skinImageBlurOut">0px</output></div></div>
+    <div class="field"><label for="skinPanelAlpha">面板不透明度</label><div class="skin-row"><input type="range" id="skinPanelAlpha" min="0" max="100" step="1" value="72"><output id="skinPanelAlphaOut">72%</output></div><p class="tip">侧栏、卡片、顶栏的底色浓度；调低就更能透出壁纸。</p></div>
+    <div class="field"><label for="skinPanelBlur">面板毛玻璃</label><div class="skin-row"><input type="range" id="skinPanelBlur" min="0" max="40" step="1" value="18"><output id="skinPanelBlurOut">18px</output></div></div>
+    <div class="field"><label for="skinAccent">主色调</label><div class="skin-row"><input type="color" id="skinAccent" value="#e85c3f"><output id="skinAccentOut">#e85c3f</output></div></div>
+  </div>
+  <div class="dialog-foot"><p class="notice" id="skinNotice"></p><div class="foot-actions"><button class="secondary" id="skinReset" type="button">恢复默认</button><button id="skinDone" type="button">完成</button></div></div>
+</div></div>
+<input id="skinImage" type="file" accept="image/*" hidden>
+
+<!-- ============ 设置（M4-PREF）：外观 / 布局 / 图标风格 / 数据 ============ -->
+<div class="modal" id="settingsModal" hidden><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+  <div class="dialog-head"><div><h2 id="settingsTitle">设置</h2><p class="hint">外观、布局与图标风格都记在本机，浏览器版与桌面版各自记忆</p></div><button class="icon-button" id="settingsClose" aria-label="关闭">×</button></div>
+  <div class="dialog-body settings-body">
+    <section class="set-block">
+      <h3>外观皮肤</h3>
+      <div class="skin-grid" id="skinGrid"></div>
+      <button class="secondary" id="settingsCustomSkin" type="button">✎ 自定义外观 · 用我自己的图片</button>
+      <div class="set-sub">
+        <h3>顶栏图标</h3>
+        <p class="tip">默认是「个」字标。点顶栏或侧栏左上角的图标、或下面的按钮，都能换成自己的照片 / Logo；图片会压到 256px 存在本机。</p>
+        <div class="actions"><button class="secondary" id="settingsBrandPick" type="button">上传头像 / Logo</button><button class="secondary" id="settingsBrandReset" type="button">恢复默认图标</button></div>
+        <p class="notice" id="settingsBrandNotice"></p>
+      </div>
+    </section>
+    <section class="set-block">
+      <h3>侧边栏</h3>
+      <div class="segmented" id="navModeSeg">
+        <button type="button" data-nav="expanded">显示图标 + 文字</button>
+        <button type="button" data-nav="compact">只显示图标</button>
+      </div>
+      <p class="tip" id="navModeTip"></p>
+    </section>
+    <section class="set-block">
+      <h3>顶栏按钮</h3>
+      <div class="segmented" id="barLabelSeg">
+        <button type="button" data-barlabel="off">只显示图标</button>
+        <button type="button" data-barlabel="on">图标 + 文字</button>
+      </div>
+      <div class="set-sub">
+        <h3>顶栏样式</h3>
+        <div class="segmented" id="barStyleSeg">
+          <button type="button" data-barstyle="circle">独立圆形按钮</button>
+          <button type="button" data-barstyle="capsule">收进一枚胶囊</button>
+        </div>
+      </div>
+      <p class="tip">隐藏文字后，鼠标停上去会浮出文字说明。</p>
+    </section>
+    <section class="set-block">
+      <h3>图标风格</h3>
+      <div class="segmented" id="iconStyleSeg">
+        <button type="button" data-iconstyle="plain">极简线稿</button>
+        <button type="button" data-iconstyle="tile">圆角方块</button>
+      </div>
+      <div class="icon-demo" id="iconDemo"></div>
+    </section>
+    <section class="set-block">
+      <h3>数据与连接</h3>
+      <p class="tip" id="settingsStatus">正在检查本地服务……</p>
+      <div class="actions"><button class="secondary" id="settingsScan" type="button">同步文件夹</button><button class="secondary" id="settingsConnect" type="button">重新连接</button></div>
+    </section>
+  </div>
+  <div class="dialog-foot"><p class="notice" id="settingsNotice"></p><div class="foot-actions"><button id="settingsDone" type="button">完成</button></div></div>
+</div></div>
 
 <script>
 /* ============================================================================
@@ -368,20 +617,181 @@ const API='http://127.0.0.1:8765/api';
 const nativeInvoke=window.__TAURI__?.core?.invoke;
 const $=id=>document.getElementById(id);
 const $$=sel=>[...document.querySelectorAll(sel)];
+/* 顶部状态条已移除：状态文案统一写到设置面板「数据与连接」那一行。 */
+function setStatus(text,bad){
+  const box=$('settingsStatus');
+  if(!box)return;
+  box.textContent=text;
+  box.className=bad?'tip bad':'tip';
+}
 
 /* kind 的展示元数据：编辑器字段标题、卡片副标题、图标兜底符号都由它驱动。 */
 const KINDS={
-  script:{label:'脚本',symbol:'▣',blurb:'可以点击运行的文件',sub:i=>extOf(itemPath(i))||'脚本'},
-  link:{label:'网址',symbol:'↗',blurb:'点开就在浏览器打开',sub:i=>hostOf(i.target)||'网址'},
-  app:{label:'应用',symbol:'◈',blurb:'启动本地程序，保留原图标',sub:i=>baseName(i.target)||'应用'},
-  file:{label:'文档',symbol:'▤',blurb:'文件或文件夹，用默认程序打开',sub:i=>baseName(i.target)||'文件'}
+  script:{label:'脚本',symbol:'▣',icon:'terminal',blurb:'可以点击运行的文件',sub:i=>extOf(itemPath(i))||'脚本'},
+  link:{label:'网址',symbol:'↗',icon:'globe',blurb:'点开就在浏览器打开',sub:i=>hostOf(i.target)||'网址'},
+  app:{label:'应用',symbol:'◈',icon:'app',blurb:'启动本地程序，保留原图标',sub:i=>baseName(i.target)||'应用'},
+  file:{label:'文档',symbol:'▤',icon:'file',blurb:'文件或文件夹，用默认程序打开',sub:i=>baseName(i.target)||'文件'}
 };
 const KIND_ORDER=['script','link','app','file'];
+const KIND_ICONS={script:'terminal',link:'globe',app:'app',file:'file',inbox:'inbox'};
+
+/* ------------------------------ 图标集 ------------------------------
+   全部手写在 24×24 视口里，只描边不填充（fill:none + stroke:currentColor），
+   于是任何皮肤、任何底色下都跟着文字颜色走，也不需要外部图标库。
+   新增一个图标：往下面加一条「名字: '几何图形'」，侧栏 / 分类 / 顶栏都能直接用。 */
+const ICONS={
+  folder:'<path d="M3 18.2V6.6A1.6 1.6 0 0 1 4.6 5h4.2l2 2.2h8.6A1.6 1.6 0 0 1 21 8.8v9.4a1.6 1.6 0 0 1-1.6 1.6H4.6A1.6 1.6 0 0 1 3 18.2z"/>',
+  grid:'<rect x="3" y="3" width="7.6" height="7.6" rx="2.2"/><rect x="13.4" y="3" width="7.6" height="7.6" rx="2.2"/><rect x="3" y="13.4" width="7.6" height="7.6" rx="2.2"/><rect x="13.4" y="13.4" width="7.6" height="7.6" rx="2.2"/>',
+  star:'<path d="M12 3.6l2.6 5.3 5.8.85-4.2 4.1 1 5.75L12 16.9l-5.2 2.7 1-5.75-4.2-4.1 5.8-.85z"/>',
+  inbox:'<path d="M3 13h4.6l1.2 2.4h6.4L16.4 13H21"/><path d="M5.6 5.4h12.8L21 13v4.6A2.4 2.4 0 0 1 18.6 20H5.4A2.4 2.4 0 0 1 3 17.6V13z"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  min:'<path d="M6 12h12"/>',
+  max:'<rect x="5" y="5" width="14" height="14" rx="2.4"/>',
+  close:'<path d="M7 7l10 10M17 7L7 17"/>',
+  refresh:'<path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 4.6V10h-5.4"/>',
+  sync:'<path d="M4 8.6h12.6"/><path d="M13.8 5.6l3 3-3 3"/><path d="M20 15.4H7.4"/><path d="M10.2 12.4l-3 3 3 3"/>',
+  palette:'<path d="M12 3.5a8.5 8.5 0 1 0 0 17 2 2 0 0 0 1.5-3.3 2 2 0 0 1 1.5-3.3h1.9a3.6 3.6 0 0 0 3.6-3.6A8.5 8.5 0 0 0 12 3.5z"/><circle cx="8.4" cy="9.6" r="1.05"/><circle cx="12" cy="7.6" r="1.05"/><circle cx="15.6" cy="9.8" r="1.05"/>',
+  sliders:'<path d="M4 7.5h8M16.5 7.5H20M4 12h3.5M12 12h8M4 16.5h9.5M18 16.5H20"/><circle cx="14.2" cy="7.5" r="2.1"/><circle cx="9.7" cy="12" r="2.1"/><circle cx="15.7" cy="16.5" r="2.1"/>',
+  terminal:'<rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M7.6 10.4l2.2 2-2.2 2"/><path d="M11.8 14.6h4.6"/>',
+  globe:'<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.3 2.5 3.5 5.4 3.5 8.5S14.3 18 12 20.5C9.7 18 8.5 15.1 8.5 12S9.7 6 12 3.5z"/>',
+  link:'<path d="M10.4 13.6a3.6 3.6 0 0 0 5.1 0l3-3a3.6 3.6 0 0 0-5.1-5.1L12.2 6.7"/><path d="M13.6 10.4a3.6 3.6 0 0 0-5.1 0l-3 3a3.6 3.6 0 0 0 5.1 5.1l1.2-1.2"/>',
+  app:'<rect x="3" y="4.2" width="18" height="15.6" rx="3"/><path d="M3 9.2h18"/><circle cx="6.8" cy="6.7" r=".8"/><circle cx="9.4" cy="6.7" r=".8"/>',
+  file:'<path d="M13.6 3.5H7.5A2 2 0 0 0 5.5 5.5v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8.4z"/><path d="M13.6 3.5v4.9h4.9"/>',
+  'folder-plus':'<path d="M3.5 7.6A2.5 2.5 0 0 1 6 5.1h3.4l1.8 2.2H18a2.5 2.5 0 0 1 2.5 2.5v7.7A2.5 2.5 0 0 1 18 20H6a2.5 2.5 0 0 1-2.5-2.5z"/><path d="M12 11.4v5M9.5 13.9h5"/>',
+  'panel-left':'<rect x="3" y="4.2" width="18" height="15.6" rx="3"/><path d="M9.4 4.2v15.6"/>',
+  archive:'<rect x="3" y="4.4" width="18" height="4.6" rx="1.6"/><path d="M5 9v9.4A2.1 2.1 0 0 0 7.1 20.5h9.8A2.1 2.1 0 0 0 19 18.4V9"/><path d="M10 13.2h4"/>',
+  lock:'<rect x="4.5" y="10" width="15" height="10.5" rx="3"/><path d="M8 10V7.6a4 4 0 0 1 8 0V10"/><path d="M12 14.2v2.4"/>',
+  clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.4V12l3.1 2"/>',
+  game:'<rect x="2.5" y="7" width="19" height="10.6" rx="4.4"/><path d="M7.2 10.4v3.4M5.5 12.1h3.4"/><circle cx="15.8" cy="11.4" r="1.05"/><circle cx="18.2" cy="13.6" r="1.05"/>',
+  image:'<rect x="3" y="4.5" width="18" height="15" rx="3"/><circle cx="8.6" cy="10" r="1.6"/><path d="M3.6 17.6l4.4-4.1 4 3.6 3.2-2.7 5.2 4.4"/>',
+  music:'<circle cx="7" cy="17.4" r="2.5"/><circle cx="17.5" cy="15.2" r="2.5"/><path d="M9.5 17.4V7.5L20 5v10.2"/>',
+  video:'<rect x="2.5" y="6" width="13.2" height="12" rx="3"/><path d="M15.7 11.2l5.8-3.1v7.8l-5.8-3.1z"/>',
+  code:'<path d="M9.2 7.6L4.8 12l4.4 4.4"/><path d="M14.8 7.6L19.2 12l-4.4 4.4"/>',
+  book:'<path d="M5 4.6h12.5A1.5 1.5 0 0 1 19 6.1v13.4H6.8A1.9 1.9 0 0 0 5 21.4z"/><path d="M5 4.6v12.6A1.9 1.9 0 0 1 6.8 15.4H19"/>',
+  chart:'<path d="M4.2 3.8v16.4h15.6"/><path d="M8.6 20.2v-5.6M12.6 20.2V8.4M16.6 20.2v-7.8"/>',
+  cloud:'<path d="M7.6 18.6a4.2 4.2 0 0 1-.5-8.4 5.3 5.3 0 0 1 10.2-1.2 4 4 0 0 1-.1 9.6z"/>',
+  mail:'<rect x="3" y="5.4" width="18" height="13.2" rx="3"/><path d="M3.9 7.4L12 12.9l8.1-5.5"/>',
+  cart:'<circle cx="9.6" cy="19" r="1.4"/><circle cx="17.2" cy="19" r="1.4"/><path d="M3 4.2h2.3l2.4 10.4h11L20.6 7.2H6"/>',
+  heart:'<path d="M12 20.2s-7.4-4.7-7.4-9.5A4.1 4.1 0 0 1 12 8a4.1 4.1 0 0 1 7.4 2.7c0 4.8-7.4 9.5-7.4 9.5z"/>',
+  home:'<path d="M4 10.6L12 4.2l8 6.4V19a1.6 1.6 0 0 1-1.6 1.6H5.6A1.6 1.6 0 0 1 4 19z"/><path d="M9.4 20.6v-6.2h5.2v6.2"/>',
+  calendar:'<rect x="3.5" y="5.4" width="17" height="15.1" rx="3"/><path d="M3.5 10.2h17M8 3.4v4M16 3.4v4"/>',
+  map:'<path d="M9 4.4L3.5 6.9v13L9 17.4l6 2.5 5.5-2.5v-13L15 6.9z"/><path d="M9 4.4v13M15 6.9v13"/>',
+  bulb:'<path d="M9.6 16.4a5.4 5.4 0 1 1 4.8 0v1.2a1.6 1.6 0 0 1-1.6 1.6h-1.6a1.6 1.6 0 0 1-1.6-1.6z"/><path d="M10.2 20.6h3.6"/>',
+  database:'<ellipse cx="12" cy="6.4" rx="7.5" ry="3"/><path d="M4.5 6.4v11.2c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6.4"/><path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3"/>',
+  spark:'<path d="M11 3.4l1.8 4.7 4.7 1.8-4.7 1.8L11 16.4 9.2 11.7 4.5 9.9l4.7-1.8z"/><path d="M17.6 15.4l.9 2.2 2.2.9-2.2.9-.9 2.2-.9-2.2-2.2-.9 2.2-.9z"/>'
+};
+const ICON_NAMES=Object.keys(ICONS).filter(name=>name!=='spark');
+const hasIcon=name=>typeof name==='string'&&Object.prototype.hasOwnProperty.call(ICONS,name);
+/* 图标渲染：统一 24 视口 + 描边，颜色一律 currentColor，尺寸交给 CSS。 */
+function iconSvg(name){
+  const body=hasIcon(name)?ICONS[name]:ICONS.spark;
+  return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">'+body+'</svg>';
+}
+function iconInto(box,name){if(box)box.innerHTML=iconSvg(name);return box}
+/* 把标记里 data-icon 声明的图标填进对应容器（按钮里的 .bar-ic/.nav-icon，否则写进元素本身）。 */
+function hydrateIcons(scope){
+  (scope||document).querySelectorAll('[data-icon]').forEach(host=>{
+    iconInto(host.querySelector('.bar-ic,.nav-icon')||host,host.dataset.icon);
+  });
+}
+
+/* ---------------------- 品牌标（顶栏 / 侧栏左上角） ----------------------
+   默认画 M4 设计的「个」字几何标；点一下可以换成自己的照片 / Logo。
+   - 只写 localStorage（键 pwb.brand，data URL），不落 data/、不走后端，
+     所以浏览器版与桌面版各自记各自的那一张。
+   - 桌面端顶栏 .brand 带 data-tauri-drag-region，但标记本身带 role=button：
+     Tauri 2 的规则是「可点击元素挡在拖拽区前面」，点击不会被窗口拖动吃掉。
+   - 照片走 <img>，CSP 的 img-src 已放行 data:（见 app-ui.md 5.2 节）。 */
+const BRAND_KEY='pwb.brand';
+const BRAND_GLYPH='<svg viewBox="0 0 48 48" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21.5L24 13l8 8.5"/><path d="M24 13v23"/></svg>';
+let brandImage='';
+function readBrand(){try{return localStorage.getItem(BRAND_KEY)||''}catch(_){return ''}}
+function writeBrand(value){
+  try{
+    if(value)localStorage.setItem(BRAND_KEY,value);
+    else localStorage.removeItem(BRAND_KEY);
+    return '';
+  }catch(_){return '这张图本机存不下，换一张小一点的试试。'}
+}
+/* 两处标记共用：没有自定义照片就显示默认几何标，有就换成铺满的照片。 */
+function paintBrand(){
+  $$('.brand-mark').forEach(mark=>{
+    if(!mark.dataset.brandReady){
+      mark.innerHTML=BRAND_GLYPH+'<img class="brand-photo" alt="" hidden>';
+      mark.dataset.brandReady='1';
+    }
+    const img=mark.querySelector('.brand-photo');
+    if(brandImage){img.src=brandImage;img.hidden=false;mark.classList.add('has-photo')}
+    else{img.hidden=true;img.removeAttribute('src');mark.classList.remove('has-photo')}
+  });
+}
+/* 消息面板在设置弹窗里；从标记直接点的时候弹窗多半没开着，失败时补到全局状态条。 */
+function brandNotice(message,bad){
+  const box=$('settingsBrandNotice');
+  if(box)setNotice(box,message,bad);
+  if(bad)setStatus(message,true);
+}
+async function useBrandFile(file){
+  if(!file)return;
+  try{
+    const data=await shrinkImage(file,256);          /* 顶栏最大 46px，256 足够 */
+    const warn=writeBrand(data);
+    brandImage=readBrand();
+    paintBrand();
+    brandNotice(warn||'已换成你的头像。',!!warn);
+  }catch(error){
+    brandNotice('读取失败：'+(error.message||'图片无法解码'),true);
+  }
+}
+function clearBrand(){
+  brandImage='';
+  writeBrand('');
+  paintBrand();
+  brandNotice('已恢复默认图标。',false);
+}
+function initBrand(){
+  brandImage=readBrand();
+  paintBrand();
+  $$('.brand-mark').forEach(mark=>{
+    mark.onclick=()=>$('brandFile').click();
+    mark.onkeydown=event=>{
+      if(event.key==='Enter'||event.key===' '){event.preventDefault();$('brandFile').click()}
+    };
+  });
+  $('brandFile').onchange=event=>{
+    const file=event.target.files&&event.target.files[0];
+    event.target.value='';                             /* 同一个文件再选一次也要触发 */
+    useBrandFile(file);
+  };
+}
+/* 跨块契约：设置面板（M4-PREF）的「上传 / 恢复默认」两个按钮走这里。 */
+window.PWB_BRAND={pick:()=>$('brandFile').click(),reset:clearBrand};
+/* 分类图标：优先用数据里写死的图标名（symbol 或 icon 字段），其次按名称关键词猜，
+   最后回落到该分类 kind 的默认图标。旧数据里 ▤ / ◆ 这类字符符号不再直接显示。 */
+const LABEL_ICONS=[
+  [/文件夹|目录/,'folder'],[/密码|口令|账号|凭证/,'lock'],[/备份|归档|存档/,'archive'],[/临时|暂存|待清理/,'clock'],
+  [/脚本|命令|终端/,'terminal'],[/网址|收藏|链接|书签/,'globe'],[/应用|软件|程序/,'app'],
+  [/文档|资料|笔记|文件/,'file'],[/游戏|娱乐/,'game'],[/图片|照片|图库|壁纸/,'image'],
+  [/音乐|音频|播客/,'music'],[/视频|影视/,'video'],[/代码|开发|项目/,'code'],
+  [/学习|课程|读书/,'book'],[/数据|统计|报表/,'chart'],[/云盘|网盘|云端/,'cloud'],
+  [/邮件|邮箱/,'mail'],[/购物|商城|订单/,'cart'],[/日历|日程|计划/,'calendar'],
+  [/地图|出行|导航/,'map'],[/工具|实用/,'bulb'],[/数据库/,'database'],[/首页|主页/,'home']
+];
+function categoryIcon(category){
+  const c=category||{};
+  const raw=String(c.symbol||'').trim();
+  if(hasIcon(raw))return raw;
+  if(hasIcon(c.icon))return c.icon;
+  const label=String(c.label||'');
+  for(const pair of LABEL_ICONS){if(pair[0].test(label))return pair[1]}
+  return KIND_ICONS[c.kind]||KIND_ICONS.file;
+}
+
 /* 字母头像用固定色相：不依赖皮肤变量，任何皮肤下都是清晰可辨的色块。 */
 const AVATAR_HUES=[222,262,190,152,34,12,300,174];
 
-const state={items:[],categories:[],view:'all',connected:false,
-  editor:{mode:'create',id:null,kind:'script',icon:'',appPath:'',appDetail:null,newKind:'file'},
+const state={items:[],categories:[],view:'all',connected:false,browsers:[],browsersReady:false,
+  editor:{mode:'create',id:null,kind:'script',icon:'',appPath:'',appDetail:null,newKind:'file',browser:''},
   picker:{all:[],selected:null,detail:null,icon:''}};
 
 /* ------------------------------ 小工具 ------------------------------ */
@@ -397,7 +807,19 @@ function inboxKey(){return state.categories.find(c=>c.inbox)?.key||'inbox'}
 function hashOf(v){let h=0;for(const ch of String(v))h=(h*31+ch.charCodeAt(0))>>>0;return h}
 function timestamp(v){const n=Number(v);return Number.isFinite(n)?n*1000:(Date.parse(v)||0)}
 function score(x){return(x.openCount||0)*12+(x.lastOpenedAt?Math.max(0,30-(Date.now()-timestamp(x.lastOpenedAt))/86400000):0)}
-function sortItems(x){return[...x].sort((a,b)=>Number.isFinite(a.order)&&Number.isFinite(b.order)?a.order-b.order:score(b)-score(a))}
+/* 位置只由 order 决定：不拖动就不换位。
+   旧实现是「两两之间都有 order 才比 order，否则比 score()」，而 score() 含打开次数与距上次
+   打开的天数——于是点一下图标、它的分数涨上去，就会自己跳到分类里的第一位。
+   现在：有 order 的按 order 升序；没有 order 的（从没拖过的分类）按后端返回的原始顺序
+   排在后面，两者都不含任何随时间/点击变化的量。缺 order 与 order 撞号时用原始下标兜底，
+   保证排序结果稳定可复现。 */
+function sortItems(list){
+  return list.map((item,index)=>({item,index})).sort((a,b)=>{
+    const ao=Number.isFinite(a.item.order)?a.item.order:Number.MAX_SAFE_INTEGER;
+    const bo=Number.isFinite(b.item.order)?b.item.order:Number.MAX_SAFE_INTEGER;
+    return ao-bo||a.index-b.index;
+  }).map(entry=>entry.item);
+}
 
 /* 字母头像：没有图标时用首字母 + 稳定色相，比塞一个认错的系统图标诚实。 */
 function paintIcon(box,item){
@@ -429,14 +851,14 @@ function colorSwatch(el,seed,text){
 /* --------------------- 双通道适配层（唯一后端入口） --------------------- */
 const IPC_MAP={
   'GET /status':'get_status','GET /items':'get_items','GET /categories':'get_categories',
-  'GET /shortcuts':'list_shortcuts','GET /shortcuts/icon':'shortcut_detail',
+  'GET /shortcuts':'list_shortcuts','GET /shortcuts/icon':'shortcut_detail','GET /browsers':'list_browsers',
   'POST /scan':'scan_items','POST /categories':'create_category',
   'POST /items':'create_item','POST /items/metadata':'complete_metadata',
   'POST /items/update':'update_item','POST /items/delete':'delete_item',
   'POST /items/reorder':'reorder_items','POST /items/open':'open_item','POST /items/hide':'hide_item'
 };
 /* 这些 IPC 命令不接受输入，直接调用。 */
-const IPC_NO_INPUT=new Set(['get_status','get_items','get_categories','list_shortcuts','scan_items']);
+const IPC_NO_INPUT=new Set(['get_status','get_items','get_categories','list_shortcuts','list_browsers','scan_items']);
 
 async function request(path,options){
   const opts=options||{};
@@ -473,19 +895,23 @@ function renderNav(){
   nav.replaceChildren();
   const done=state.items.filter(i=>i.status==='complete');
   const pending=state.items.filter(i=>i.status==='needs_metadata');
-  const rows=[{view:'all',symbol:'▦',label:'全部内容',count:done.length},
-    {view:'frequent',symbol:'★',label:'常用',count:0},{sep:true},
-    ...visibleCategories().map(c=>({view:c.key,symbol:c.symbol||'▤',label:c.label,count:done.filter(i=>i.category===c.key).length,category:c})),
-    {sep:true},{view:inboxKey(),symbol:'!',label:'待补充',count:pending.length}];
+  const rows=[{view:'all',icon:'grid',label:'全部内容',count:done.length},
+    {view:'frequent',icon:'star',label:'常用',count:0},{sep:true},
+    ...visibleCategories().map(c=>({view:c.key,icon:categoryIcon(c),label:c.label,count:done.filter(i=>i.category===c.key).length,category:c})),
+    {sep:true},{view:inboxKey(),icon:'inbox',label:'待补充',count:pending.length}];
   for(const row of rows){
     if(row.sep){const sep=document.createElement('div');sep.className='nav-sep';nav.append(sep);continue}
     const button=document.createElement('button');
     button.type='button';
     button.className='nav-link'+(state.view===row.view?' active':'');
     button.dataset.view=row.view;
-    const symbol=document.createElement('span');symbol.className='nav-symbol';symbol.textContent=row.symbol;
+    /* 文字提示用于「只显示图标」的紧凑侧栏（M4-PREF 的悬停提示读取它）。 */
+    button.dataset.tip=row.label+(row.count?'（'+row.count+'）':'');
+    const icon=document.createElement('span');icon.className='nav-icon';
+    /* 把解析出来的图标名留在 DOM 上：调试与自动化验证都要靠它确认用的是哪一枚。 */
+    icon.dataset.iconName=row.icon;iconInto(icon,row.icon);
     const text=document.createElement('span');text.className='nav-text';text.textContent=row.label;
-    button.append(symbol,text);
+    button.append(icon,text);
     if(row.count){const count=document.createElement('span');count.className='nav-count';count.textContent=String(row.count);button.append(count)}
     button.onclick=()=>{state.view=row.view;renderNav();applyView()};
     if(row.category&&!row.category.builtin){
@@ -509,10 +935,7 @@ function makeIconCard(item){
   paintIcon(glyph,item);
   const title=document.createElement('span');
   title.className='card-title';title.textContent=item.title;
-  const meta=document.createElement('span');
-  meta.className='card-meta';
-  meta.textContent=item.description||(item.tags&&item.tags.length?item.tags.join(' · '):(KINDS[kind]?.sub?KINDS[kind].sub(item):''));
-  card.append(glyph,title,meta);
+  card.append(glyph,title);
   card.onclick=()=>openItem(item);
   card.oncontextmenu=event=>{
     event.preventDefault();
@@ -616,17 +1039,29 @@ async function loadItems(){
   render();
 }
 
+/* 本机已安装的浏览器（探测结果里没有「系统默认」这一项，空值即跟随系统）。
+   只取一次；取不到就留空列表，不影响其它功能。 */
+async function loadBrowsers(){
+  if(state.browsersReady)return state.browsers;
+  try{
+    const data=await request('/browsers');
+    state.browsers=Array.isArray(data.browsers)?data.browsers:[];
+  }catch(error){
+    state.browsers=[];
+  }
+  state.browsersReady=true;
+  return state.browsers;
+}
+
 async function connect(){
   try{
     const info=await request('/status');
     state.connected=true;
-    $('status').textContent=(nativeInvoke?'桌面版':'浏览器版')+'已连接 · 数据目录 '+(info.dataPath||'');
-    $('status').className='status ok';
+    setStatus((nativeInvoke?'桌面版':'浏览器版')+'已连接 · 数据目录 '+(info.dataPath||''));
     await loadItems();
   }catch(error){
     state.connected=false;
-    $('status').textContent='无法连接本地工作台：'+error.message;
-    $('status').className='status bad';
+    setStatus('无法连接本地工作台：'+error.message,true);
   }
 }
 
@@ -664,11 +1099,34 @@ function paintIconSlot(){
   }else{
     img.hidden=true;img.removeAttribute('src');
     glyph.hidden=false;
-    glyph.textContent=KINDS[ed.kind]?.symbol||'▣';
+    iconInto(glyph,KINDS[ed.kind]?.icon||'spark');
   }
 }
 
 /* ------------------------------ 编辑器 ------------------------------ */
+/* 分类图标选择器铺的图标：语义图标为主，去掉纯窗口控件（─ ▢ ✕）那几枚。 */
+const PICKER_ICONS=['spark','grid','star','inbox','terminal','code','globe','link','app','file',
+  'folder-plus','archive','lock','clock','game','image','music','video','book','chart',
+  'cloud','mail','cart','heart','home','calendar','map','bulb','database','palette','sliders'];
+/* 选中值记在容器的 dataset.value 上，不额外放隐藏 input。 */
+function buildIconPicker(box,current){
+  if(!box)return;
+  box.replaceChildren();
+  box.dataset.value=hasIcon(current)?current:'spark';
+  for(const name of PICKER_ICONS){
+    const button=document.createElement('button');
+    button.type='button';
+    button.title=name;
+    button.className=name===box.dataset.value?'on':'';
+    button.dataset.iconName=name;
+    iconInto(button,name);
+    button.onclick=()=>{
+      box.dataset.value=name;
+      [...box.children].forEach(node=>node.classList.toggle('on',node===button));
+    };
+    box.append(button);
+  }
+}
 function buildSegmented(kinds,current,onPick){
   const box=$('kindSwitch');
   box.replaceChildren();
@@ -676,7 +1134,9 @@ function buildSegmented(kinds,current,onPick){
     const button=document.createElement('button');
     button.type='button';
     button.className=kind===current?'on':'';
-    button.textContent=KINDS[kind].label;
+    const icon=document.createElement('span');icon.className='seg-icon';iconInto(icon,KINDS[kind].icon);
+    const label=document.createElement('span');label.textContent=KINDS[kind].label;
+    button.append(icon,label);
     button.onclick=()=>onPick(kind);
     box.append(button);
   }
@@ -687,7 +1147,10 @@ function buildKindCards(box,current,onPick){
     const card=document.createElement('button');
     card.type='button';
     card.className='kind-card'+(kind===current?' on':'');
-    const title=document.createElement('b');title.textContent=KINDS[kind].symbol+' '+KINDS[kind].label;
+    const title=document.createElement('b');
+    const tIcon=document.createElement('span');tIcon.className='kind-icon';iconInto(tIcon,KINDS[kind].icon);
+    const tText=document.createElement('span');tText.textContent=KINDS[kind].label;
+    title.append(tIcon,tText);
     const blurb=document.createElement('span');blurb.textContent=KINDS[kind].blurb;
     card.append(title,blurb);
     card.onclick=()=>onPick(kind);
@@ -699,7 +1162,7 @@ function setEditorKind(kind){
   state.editor.kind=kind;
   buildSegmented(KIND_ORDER,kind,setEditorKind);
   $$('#editor .kfields').forEach(block=>{block.hidden=block.dataset.kind!==kind});
-  $('iconTip').textContent=KINDS[kind].symbol+' '+KINDS[kind].blurb+'。点左边方块可以换图标。';
+  $('iconTip').textContent=KINDS[kind].blurb+'。点左边方块可以换图标。';
   if(state.editor.mode==='create')$('dialogTitle').textContent='新增'+KINDS[kind].label;
   paintIconSlot();
 }
@@ -734,16 +1197,61 @@ function renderPickedApp(target,args){
   box.append(row);
 }
 
+/* ------------------- 网址：用哪个浏览器打开（仅 link 类型） ------------------- */
+/* 字段语义：'' = 跟随系统默认；已知 key = 探测到的浏览器；其它 = 浏览器 exe 的绝对路径。
+   下拉里 '__custom__' 只是界面态，落到条目前会被 browserValue() 换成真实路径。 */
+function syncBrowserCustom(){
+  const picking=$('browserPick').value==='__custom__';
+  $('browserCustom').hidden=!picking;
+  if(picking)$('browserPath').focus();
+}
+
+function paintBrowserOptions(current){
+  const select=$('browserPick');
+  const keys=new Set(state.browsers.map(b=>b.key));
+  const rows=[{value:'',label:'跟随系统默认'}];
+  for(const browser of state.browsers)rows.push({value:browser.key,label:browser.label});
+  if(current&&!keys.has(current))rows.push({value:current,label:'自定义：'+(baseName(current)||current)});
+  rows.push({value:'__custom__',label:'自定义路径…'});
+  select.replaceChildren();
+  for(const row of rows){
+    const option=document.createElement('option');
+    option.value=row.value;option.textContent=row.label;
+    select.append(option);
+  }
+  select.value=current;
+  if(select.value!==current)select.value='';
+  $('browserPath').value=keys.has(current)?'':current;
+  $('browserTip').textContent=state.browsers.length
+    ?'默认交给系统默认浏览器；选过之后只对这条网址生效。'
+    :'没检测到本机已安装的浏览器，可以选「自定义路径…」直接填浏览器 exe 的完整路径。';
+  syncBrowserCustom();
+}
+
+async function prepareBrowserFields(value){
+  const current=String(value||'').trim();
+  $('browserPick').onchange=syncBrowserCustom;
+  paintBrowserOptions(current);
+  await loadBrowsers();
+  paintBrowserOptions(current);
+}
+
+/** 下拉当前值 → 要落盘的 browser 字段。 */
+function browserValue(){
+  const picked=$('browserPick').value;
+  return picked==='__custom__'?$('browserPath').value.trim():picked;
+}
+
 function openEditor(options){
   const mode=options.mode;
   const item=options.item||null;
   const ed=state.editor;
-  ed.mode=mode;ed.id=item?item.id:null;ed.icon=item?item.icon||'':'';ed.appPath='';ed.appDetail=null;ed.newKind='file';
+  ed.mode=mode;ed.id=item?item.id:null;ed.icon=item?item.icon||'':'';ed.appPath='';ed.appDetail=null;ed.newKind='file';ed.browser=item?item.browser||'':'';
   $('title').value=item?item.title||'':'';
   $('description').value=item?item.description||'':'';
   $('tags').value=item?(item.tags||[]).join(','):'';
-  $('scriptBody').value='';$('extension').value='ps1';$('url').value='';$('filePath').value='';$('appPath').value='';
-  $('assignNewName').value='';$('assignNewSymbol').value='';
+  $('scriptBody').value='';$('extension').value='ps1';$('url').value='';$('filePath').value='';$('appPath').value='';$('browserPath').value='';
+  $('assignNewName').value='';buildIconPicker($('assignNewSymbolPick'),'spark');
   setNotice($('notice'),'');
   $('editor').hidden=false;
   $('assignBlock').hidden=mode!=='assign';
@@ -794,6 +1302,7 @@ function openEditor(options){
     renderPickedApp('','');
   }
   $('save').textContent=mode==='edit'?'保存修改':mode==='assign'?'归类并保存':'保存';
+  if(state.editor.kind==='link')prepareBrowserFields(ed.browser);
   $('title').focus();
 }
 
@@ -810,20 +1319,21 @@ async function saveEditor(){
   try{
     if(ed.mode==='edit'){
       await post('/items/update',{id:ed.id,...base,
-        target:ed.kind==='link'?$('url').value:ed.kind==='file'?$('filePath').value:''});
+        target:ed.kind==='link'?$('url').value:ed.kind==='file'?$('filePath').value:'',
+        browser:ed.kind==='link'?browserValue():undefined});
     }else if(ed.mode==='assign'){
       const chosen=$('assignCategory').value;
       const payload={id:ed.id,...base,category:chosen==='__new__'?'':chosen};
       if(chosen==='__new__'){
         const label=$('assignNewName').value.trim();
         if(!label){setNotice(note,'请填写新分类的名称。',true);return $('assignNewName').focus()}
-        payload.newCategory={label,kind:ed.newKind,symbol:$('assignNewSymbol').value.trim()||'▤'};
+        payload.newCategory={label,kind:ed.newKind,symbol:$('assignNewSymbolPick').dataset.value||'spark'};
       }
       await post('/items/metadata',payload);
     }else{
       const payload={category:ed.kind,...base};
       if(ed.kind==='script'){payload.extension=$('extension').value.trim()||'ps1';payload.content=$('content').value}
-      else if(ed.kind==='link'){payload.target=$('url').value}
+      else if(ed.kind==='link'){payload.target=$('url').value;payload.browser=browserValue()}
       else if(ed.kind==='app'){
         payload.path=ed.appPath||$('appPath').value.trim();
         if(!payload.path){setNotice(note,'先选一个应用，或填上程序路径。',true);return}
@@ -956,7 +1466,7 @@ async function usePickedShortcut(){
 /* ------------------------------ 分类管理 ------------------------------ */
 function openCategoryModal(){
   $('categoryName').value='';
-  $('categorySymbol').value='';
+  buildIconPicker($('categorySymbolPick'),'spark');
   setNotice($('categoryNotice'),'');
   let choice='file';
   const rebuild=()=>buildKindCards($('categoryKinds'),choice,kind=>{choice=kind;rebuild()});
@@ -967,7 +1477,7 @@ function openCategoryModal(){
     const label=$('categoryName').value.trim();
     if(!label)return setNotice($('categoryNotice'),'请填写分类名称。',true);
     try{
-      await post('/categories',{label,kind:choice,symbol:$('categorySymbol').value.trim()||'▤'});
+      await post('/categories',{label,kind:choice,symbol:$('categorySymbolPick').dataset.value||'spark'});
       $('categoryModal').hidden=true;
       await loadItems();
       const created=state.categories.find(c=>c.label===label);
@@ -999,8 +1509,11 @@ async function removeCategory(category){
 
 /* ------------------------------ 条目操作 ------------------------------ */
 async function openItem(item){
-  try{await post('/items/open',{id:item.id});await loadItems()}
-  catch(error){alert(error.message)}
+  try{
+    const result=await post('/items/open',{id:item.id});
+    await loadItems();
+    if(result&&result.warning)alert(result.warning);
+  }catch(error){alert(error.message)}
 }
 async function deleteItem(item){
   const extra=kindOf(item)==='app'
@@ -1034,9 +1547,10 @@ function openContextMenu(x,y,rows){
 }
 
 /* ------------------------------ 事件绑定 ------------------------------ */
-$('connect').onclick=connect;
-$('scan').onclick=async()=>{
-  const status=$('status');
+$('connect').onclick=()=>connect();
+$('scan').onclick=()=>scanFolders();
+/* 抽成命名函数：设置面板里的「同步文件夹」也调它（见 M4-PREF）。 */
+async function scanFolders(){
   try{
     const data=await request('/scan',{method:'POST'});
     state.items=data.items||state.items;
@@ -1044,15 +1558,16 @@ $('scan').onclick=async()=>{
     renderNav();render();
     const discovered=(data.discovered||[]).length;
     const removed=(data.removed||[]).length;
-    status.textContent=discovered||removed
+    const message=discovered||removed
       ?'同步完成：新增 '+discovered+' 个文件，清理 '+removed+' 条失效记录。'
       :'同步完成，文件夹和目录已经一致。';
-    status.className='status ok';
+    setStatus(message);
+    return message;
   }catch(error){
-    status.textContent=error.message;
-    status.className='status bad';
+    setStatus(error.message,true);
+    throw error;
   }
-};
+}
 $('openAdd').onclick=()=>openEditor({mode:'create',category:visibleCategories().find(c=>c.key===state.view)});
 $('openNewCategory').onclick=openCategoryModal;
 $('closeAdd').onclick=closeEditor;
@@ -1155,6 +1670,13 @@ if(nativeInvoke){
   }catch(error){console.error('窗口控制初始化失败：',error)}
 }
 
+/* 把标记里 data-icon 声明的图标（顶栏按钮、窗口控制、侧栏底部按钮）填上 SVG；
+   导航里的图标由 renderNav() 自己渲染，不在这里。 */
+hydrateIcons();
+initBrand();
+/* 跨块契约：设置面板（M4-PREF）需要这两个能力，显式暴露，别去摸内部函数。 */
+window.PWB_APP={connect,scanFolders};
+
 connect();
 </script>
 <script>
@@ -1164,14 +1686,22 @@ connect();
    - 新增皮肤：在下方 SKINS 数组加一条即可，切换菜单自动出现；
      需要专属背景效果时，在 <style> 里模仿 body[data-skin="xxx"]::before 写规则
    - 选择保存在 localStorage（键 pwb.skin），浏览器版与桌面版各自记忆
+   - 「自定义 · 我的图片」是动态皮肤：图片与透明度等参数存在 localStorage
+     （键 pwb.skin.custom），变量表由 customVars() 现算，面板 #skinCustom 即时生效
    - 只改外观变量，不触碰 M4-MAIN / M4-DRAG 的任何 DOM 契约
    ========================================================================== */
 (()=>{
   const KEY='pwb.skin';
+  const CFG_KEY='pwb.skin.custom';
   const el=id=>document.getElementById(id);
+  /* 自定义外观的默认值；「恢复默认」就是把配置清回这里。 */
+  const DEFAULTS={image:'',imageAlpha:65,imageBlur:0,veil:38,panelAlpha:72,panelBlur:18,accent:'#e85c3f',base:'light'};
   /* vars 里列出要覆盖的变量即可，未列出的沿用 :root 兜底值；swatch 是菜单里的色板圆点。 */
   const SKINS=[
-    {id:'classic',name:'经典云白',swatch:'#4b5fd6',vars:{}},
+    /* classic 的 vars 显式写出几个键（值就是 :root 的兜底值），
+       这样设置面板里的皮肤色卡也能画出它的三层底色。 */
+    {id:'classic',name:'经典云白',swatch:'#4b5fd6',vars:{
+      '--wash':'#f5f7fb','--brand':'#4b5fd6','--ink':'#172033','--paper-solid':'#fff','--line':'#e5e8f0'}},
     {id:'liquid-glass',name:'液态玻璃 · 暖阳',swatch:'#f2937d',vars:{
       '--ink':'#43313a','--muted':'#8f6b76','--faint':'#b08e98',
       '--line':'rgba(255,255,255,.55)','--line-strong':'rgba(120,70,60,.22)',
@@ -1199,37 +1729,299 @@ connect();
       '--bar-bg':'linear-gradient(100deg,rgba(36,40,74,.62),rgba(52,46,98,.5))','--bar-border':'rgba(255,255,255,.14)','--bar-shadow':'0 8px 22px rgba(0,0,20,.4),inset 0 -1px 0 rgba(255,255,255,.07)',
       '--scroll-thumb':'rgba(255,255,255,.22)','--scroll-thumb-hover':'rgba(255,255,255,.4)','--scroll-track':'transparent',
       '--radius':'18px','--radius-sm':'14px','--radius-lg':'20px','--radius-xs':'11px',
-      '--sh-raised':'0 10px 30px rgba(0,0,16,.5)','--sh-float':'0 22px 50px rgba(0,0,16,.6)'}}
+      '--sh-raised':'0 10px 30px rgba(0,0,16,.5)','--sh-float':'0 22px 50px rgba(0,0,16,.6)'}},
+    /* 参考「简约 B 端」那张深色大图界面：近黑底 + 冷青天光 + 细白描边玻璃卡，
+       主色刻意用近白（选中态是白底深字），整体克制不抢内容。 */
+    {id:'graphite-dusk',name:'石墨暮色 · 简约 B 端',swatch:'#8fa3b8',vars:{
+      '--ink':'#eef3f9','--muted':'#9dabbd','--faint':'#7c8b9e',
+      '--line':'rgba(255,255,255,.10)','--line-strong':'rgba(255,255,255,.22)',
+      '--paper':'rgba(18,22,29,.52)','--paper-solid':'#171b22','--paper-hover':'rgba(42,50,62,.62)',
+      '--wash':'linear-gradient(165deg,#0a0d12 0%,#111721 42%,#151d29 72%,#101a18 100%)',
+      '--brand':'#e8eef6','--brandwash':'rgba(232,238,246,.12)','--brand-ink':'#dbe5f1','--brand-line':'rgba(232,238,246,.36)','--on-brand':'#111820',
+      '--soft':'rgba(255,255,255,.07)','--soft-ink':'#c8d3e2',
+      '--ok':'#5ad6a0','--ok-line':'rgba(90,214,160,.34)','--ok-bg':'rgba(90,214,160,.10)',
+      '--danger':'#ff8b7d','--scrim':'rgba(3,6,12,.62)',
+      '--blur':'22px','--panel-border':'rgba(255,255,255,.10)','--panel-shadow':'0 10px 32px rgba(0,0,10,.5)',
+      '--bar-bg':'linear-gradient(100deg,rgba(14,18,24,.72),rgba(20,26,36,.6))','--bar-border':'rgba(255,255,255,.08)','--bar-shadow':'0 8px 24px rgba(0,0,12,.45),inset 0 -1px 0 rgba(255,255,255,.05)',
+      '--bar-btn-bg':'rgba(255,255,255,.07)','--bar-btn-ink':'#dbe5f1','--bar-btn-border':'rgba(255,255,255,.13)',
+      '--nav-tile-bg':'rgba(255,255,255,.07)','--nav-tile-ink':'#cfdae8',
+      '--scroll-thumb':'rgba(255,255,255,.2)','--scroll-thumb-hover':'rgba(255,255,255,.36)','--scroll-track':'transparent',
+      '--radius':'20px','--radius-sm':'15px','--radius-lg':'22px','--radius-xs':'11px',
+      '--sh-raised':'0 12px 34px rgba(0,0,12,.5)','--sh-float':'0 24px 54px rgba(0,0,12,.62)'}},
+    /* 参考粉色界面那张：粉白柔光 + 大圆角 + 玫粉主色，图标垫白色圆角方块。 */
+    {id:'sakura-mist',name:'樱粉薄雾',swatch:'#e0728f',vars:{
+      '--ink':'#5a4149','--muted':'#9a7c88','--faint':'#bda6b0',
+      '--line':'rgba(255,255,255,.72)','--line-strong':'rgba(186,128,150,.3)',
+      '--paper':'rgba(255,255,255,.62)','--paper-solid':'#fffafb','--paper-hover':'rgba(255,255,255,.86)',
+      '--wash':'linear-gradient(168deg,#f9d2de 0%,#fbe3ea 34%,#fdf1f4 66%,#fdf8f9 100%)',
+      '--brand':'#e0728f','--brandwash':'rgba(224,114,143,.14)','--brand-ink':'#c1537a','--brand-line':'rgba(224,114,143,.42)','--on-brand':'#fff',
+      '--soft':'rgba(255,255,255,.72)','--soft-ink':'#8d6474',
+      '--ok':'#1c7a56','--ok-line':'rgba(28,160,110,.42)','--ok-bg':'rgba(226,247,238,.72)',
+      '--danger':'#c0392b','--scrim':'rgba(120,66,86,.32)',
+      '--blur':'20px','--panel-border':'rgba(255,255,255,.82)','--panel-shadow':'0 10px 30px rgba(214,140,166,.18)',
+      '--bar-bg':'linear-gradient(100deg,rgba(255,255,255,.72),rgba(255,236,243,.5) 46%,rgba(255,255,255,.66))','--bar-border':'rgba(255,255,255,.8)','--bar-shadow':'0 8px 24px rgba(214,140,166,.16),inset 0 -1px 0 rgba(255,255,255,.7)',
+      '--bar-btn-bg':'rgba(255,255,255,.78)','--bar-btn-ink':'#b06880','--bar-btn-border':'rgba(255,255,255,.9)',
+      '--nav-tile-bg':'rgba(255,255,255,.86)','--nav-tile-ink':'#c1688a',
+      '--scroll-thumb':'rgba(200,120,148,.28)','--scroll-thumb-hover':'rgba(200,120,148,.46)','--scroll-track':'transparent',
+      '--radius':'22px','--radius-sm':'17px','--radius-lg':'26px','--radius-xs':'13px',
+      '--sh-raised':'0 12px 32px rgba(214,140,166,.22)','--sh-float':'0 24px 54px rgba(180,110,138,.28)'}},
+    /* custom 的 vars 故意留空：它由 customVars() 按用户设置现算，别在这里写死。 */
+    {id:'custom',name:'自定义 · 我的图片',swatch:'#e85c3f',vars:{}}
   ];
   const root=document.documentElement;
   let applied=[];
+  let cfg=null;      /* 自定义外观的当前值，懒加载自 localStorage */
+  let storeTimer=null;
+
+  /* ------------------------------ 颜色小工具 ------------------------------ */
+  function clamp(v,min,max){const n=Number(v);return Number.isFinite(n)?Math.min(max,Math.max(min,n)):min}
+  function round(v){return Math.round(v*1000)/1000}
+  function hexToRgb(hex){
+    const m=/^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(String(hex||'').trim());
+    return m?{r:parseInt(m[1],16),g:parseInt(m[2],16),b:parseInt(m[3],16)}:{r:232,g:92,b:63};
+  }
+  function toHex(rgb){
+    return '#'+[rgb.r,rgb.g,rgb.b].map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('');
+  }
+  function mix(hex,target,ratio){
+    const a=hexToRgb(hex),b=hexToRgb(target);
+    return toHex({r:a.r+(b.r-a.r)*ratio,g:a.g+(b.g-a.g)*ratio,b:a.b+(b.b-a.b)*ratio});
+  }
+  function luminance(rgb){return (0.2126*rgb.r+0.7152*rgb.g+0.0722*rgb.b)/255}
+
+  /* --------------------------- 自定义外观：配置读写 --------------------------- */
+  function readCfg(){
+    if(cfg)return cfg;
+    cfg=Object.assign({},DEFAULTS);
+    try{
+      const saved=JSON.parse(localStorage.getItem(CFG_KEY)||'null');
+      if(saved&&typeof saved==='object')Object.assign(cfg,saved);
+    }catch(e){}
+    return cfg;
+  }
+  /* 改动一律「先生效、再落盘」：defer=true 给滑块用（拖拽时每帧序列化一张图太浪费）。 */
+  function writeCfg(patch,defer){
+    const next=Object.assign({},readCfg(),patch);
+    cfg=next;
+    /* 面板里改的就是自定义外观：动任何一项都直接切过去并重算变量，所见即所得。 */
+    apply('custom');
+    paintSwatch();
+    syncForm();
+    const payload=JSON.stringify(next);
+    const store=()=>{
+      try{localStorage.setItem(CFG_KEY,payload);return true}
+      catch(error){note('本机存储放不下这张图片：外观现在有效，但下次打开会回到上一张，换张小一点的图更稳。',true);return false}
+    };
+    clearTimeout(storeTimer);
+    if(defer){storeTimer=setTimeout(store,300);return true}
+    return store();
+  }
+  /* 自定义皮肤的变量表：底色基调决定面板颜色，主色决定按钮色，滑块决定透明度与模糊。 */
+  function customVars(){
+    const c=readCfg(),dark=c.base==='dark',accent=hexToRgb(c.accent);
+    const acc=accent.r+','+accent.g+','+accent.b;
+    const panel=dark?'22,26,46':'255,255,255';
+    const veil=dark?'6,8,20':'255,255,255';
+    const alpha=round(clamp(c.panelAlpha,0,100)/100);
+    return{
+      '--ink':dark?'#e9ecf7':'#242a3d',
+      '--muted':dark?'#a0a8c6':'#5f6780',
+      '--faint':dark?'#7f88a8':'#8d95ad',
+      '--line':dark?'rgba(255,255,255,.14)':'rgba(28,38,66,.14)',
+      '--line-strong':dark?'rgba(255,255,255,.28)':'rgba(28,38,66,.26)',
+      '--paper':'rgba('+panel+','+alpha+')',
+      '--paper-solid':dark?'#1a1e33':'#fff',
+      '--paper-hover':'rgba('+panel+','+round(Math.min(1,alpha+.2))+')',
+      '--wash':dark?'#0d1022':'#eef1f7',
+      '--brand':c.accent,
+      '--brandwash':'rgba('+acc+',.16)',
+      '--brand-ink':dark?mix(c.accent,'#ffffff',.35):mix(c.accent,'#000000',.22),
+      '--brand-line':'rgba('+acc+',.5)',
+      '--on-brand':luminance(accent)>.62?'#15182a':'#fff',
+      '--soft':dark?'rgba(255,255,255,.1)':'rgba(255,255,255,.6)',
+      '--soft-ink':dark?'#ccd2ee':'#454c66',
+      '--ok':dark?'#4ade9a':'#1c7a56',
+      '--ok-line':dark?'rgba(74,222,154,.4)':'rgba(28,160,110,.4)',
+      '--ok-bg':dark?'rgba(74,222,154,.12)':'rgba(214,245,231,.6)',
+      '--danger':dark?'#ff8577':'#c0392b',
+      '--scrim':dark?'rgba(2,4,16,.6)':'rgba(60,40,30,.35)',
+      '--blur':clamp(c.panelBlur,0,40)+'px',
+      '--panel-border':dark?'rgba(255,255,255,.16)':'rgba(255,255,255,.62)',
+      '--panel-shadow':dark?'0 8px 28px rgba(0,0,16,.45)':'0 8px 28px rgba(90,110,150,.18)',
+      '--bar-bg':'linear-gradient(100deg,rgba('+panel+','+round(Math.min(1,alpha+.06))+'),rgba('+panel+','+alpha+'))',
+      '--bar-border':dark?'rgba(255,255,255,.14)':'rgba(255,255,255,.6)',
+      '--bar-shadow':dark?'0 8px 22px rgba(0,0,20,.4),inset 0 -1px 0 rgba(255,255,255,.07)':'0 8px 22px rgba(90,110,150,.16),inset 0 -1px 0 rgba(255,255,255,.5)',
+      '--scroll-thumb':dark?'rgba(255,255,255,.22)':'rgba(28,38,66,.24)',
+      '--scroll-thumb-hover':dark?'rgba(255,255,255,.4)':'rgba(28,38,66,.42)',
+      '--scroll-track':'transparent',
+      '--radius':'18px','--radius-sm':'14px','--radius-lg':'20px','--radius-xs':'11px',
+      '--sh-raised':dark?'0 10px 30px rgba(0,0,16,.5)':'0 10px 30px rgba(90,110,150,.22)',
+      '--sh-float':dark?'0 22px 50px rgba(0,0,16,.6)':'0 22px 50px rgba(70,90,130,.3)',
+      /* 下面四个交给 M4-CSS 的 body[data-skin="custom"]::before / ::after。 */
+      '--custom-image':c.image?'url("'+c.image+'")':'none',
+      '--custom-image-alpha':round(clamp(c.imageAlpha,0,100)/100),
+      '--custom-image-blur':clamp(c.imageBlur,0,40)+'px',
+      '--custom-veil':'rgba('+veil+','+round(clamp(c.veil,0,100)/100)+')'
+    };
+  }
+  function varsFor(skin){return skin.id==='custom'?customVars():skin.vars}
+
   function apply(id){
     const skin=SKINS.find(s=>s.id===id)||SKINS[0];
+    const vars=varsFor(skin);
     applied.forEach(p=>root.style.removeProperty(p));
-    applied=Object.keys(skin.vars);
-    applied.forEach(p=>root.style.setProperty(p,skin.vars[p]));
+    applied=Object.keys(vars);
+    applied.forEach(p=>root.style.setProperty(p,vars[p]));
     document.body.dataset.skin=skin.id;
     try{localStorage.setItem(KEY,skin.id)}catch(e){}
     el('skinMenu').querySelectorAll('.skin-option').forEach(b=>b.classList.toggle('active',b.dataset.skin===skin.id));
+    /* 皮肤一变就广播一次：设置面板（M4-PREF）据此同步选中态，两边不直接互相依赖。 */
+    window.dispatchEvent(new CustomEvent('pwb:skin',{detail:{id:skin.id}}));
   }
+
+  /* --------------------------- 自定义外观：面板 --------------------------- */
+  /* 滑块与配置项的对应关系，改一条即可增删一个滑块（标记里补同 id 的 input 与 output）。 */
+  const RANGES=[
+    {id:'skinImageAlpha',key:'imageAlpha',out:'skinImageAlphaOut',suffix:'%'},
+    {id:'skinVeil',key:'veil',out:'skinVeilOut',suffix:'%'},
+    {id:'skinImageBlur',key:'imageBlur',out:'skinImageBlurOut',suffix:'px'},
+    {id:'skinPanelAlpha',key:'panelAlpha',out:'skinPanelAlphaOut',suffix:'%'},
+    {id:'skinPanelBlur',key:'panelBlur',out:'skinPanelBlurOut',suffix:'px'}
+  ];
+  function note(text,bad){const box=el('skinNotice');if(box){box.textContent=text||'';box.classList.toggle('bad',!!bad)}}
+  function paintSwatch(){
+    const dot=el('skinMenu').querySelector('.skin-option[data-skin="custom"] .skin-swatch');
+    if(dot)dot.style.background=readCfg().accent;
+  }
+  /* 把配置回填到控件；面板关着就直接跳过。 */
+  function syncForm(){
+    const panel=el('skinCustom');
+    if(!panel||panel.hidden)return;
+    const c=readCfg();
+    RANGES.forEach(r=>{
+      el(r.id).value=c[r.key];
+      el(r.out).textContent=c[r.key]+r.suffix;
+    });
+    el('skinAccent').value=c.accent;
+    el('skinAccentOut').textContent=c.accent;
+    el('skinBase').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.base===c.base));
+    el('skinBaseTip').textContent=c.base==='dark'?'文字用浅色，适合偏暗的图片。':'文字用深色，适合偏亮的图片。';
+    el('skinClearImage').disabled=!c.image;
+    paintPreview();
+  }
+  /* 预览用 CSSOM 写样式：桌面端 CSP 会拦 HTML 里的 style 属性。 */
+  function paintPreview(){
+    const box=el('skinPreview');if(!box)return;
+    const c=readCfg(),veil=box.querySelector('.skin-preview-veil');
+    box.style.backgroundImage=c.image?'url("'+c.image+'")':'none';
+    veil.style.background='rgba('+(c.base==='dark'?'6,8,20':'255,255,255')+','+round(clamp(c.veil,0,100)/100)+')';
+    el('skinPreviewTip').hidden=!!c.image;
+  }
+  function openCustom(){
+    el('skinMenu').hidden=true;
+    note('');
+    el('skinCustom').hidden=false;
+    syncForm();
+  }
+  /* 画到 canvas 再导出 JPEG：先按基调铺底色（JPEG 没有透明通道），
+     塞不进 localStorage 就逐级降尺寸与质量。 */
+  function bestDataUrl(img,base){
+    const attempts=[[1920,.82],[1440,.8],[1024,.75]];
+    let data='';
+    for(const [max,quality] of attempts){
+      const scale=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));
+      canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
+      const ctx=canvas.getContext('2d');
+      ctx.fillStyle=base==='dark'?'#12162a':'#f2f4fa';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      data=canvas.toDataURL('image/jpeg',quality);
+      if(data.length<=1500000)break;
+    }
+    return data;
+  }
+  function prepareImage(file){
+    return new Promise((resolve,reject)=>{
+      const url=URL.createObjectURL(file);
+      const img=new Image();
+      img.onload=()=>{
+        try{resolve(bestDataUrl(img,readCfg().base))}
+        catch(error){reject(new Error('这张图片处理不了，换一张试试'))}
+        finally{URL.revokeObjectURL(url)}
+      };
+      img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('这张图片读不出来'))};
+      img.src=url;
+    });
+  }
+
   function buildMenu(){
     const menu=el('skinMenu');
     SKINS.forEach(s=>{
       const b=document.createElement('button');
       b.type='button';b.className='skin-option';b.dataset.skin=s.id;
       const n=document.createElement('span');n.textContent=s.name;
-      const d=document.createElement('span');d.className='skin-swatch';d.style.background=s.swatch;
+      const d=document.createElement('span');d.className='skin-swatch';d.style.background=s.id==='custom'?readCfg().accent:s.swatch;
       b.append(n,d);
       b.onclick=()=>{apply(s.id);menu.hidden=true};
       menu.append(b);
     });
+    const sep=document.createElement('div');sep.className='skin-menu-sep';
+    const setup=document.createElement('button');
+    setup.type='button';setup.className='skin-option setup';setup.id='skinCustomOpen';
+    const label=document.createElement('span');label.textContent='✎ 自定义外观…';
+    setup.append(label);
+    setup.onclick=openCustom;
+    menu.append(sep,setup);
   }
   buildMenu();
+  /* 面板控件：改动即时生效 + 即时落盘，没有「保存」这一步。 */
+  RANGES.forEach(r=>el(r.id).addEventListener('input',()=>writeCfg({[r.key]:Number(el(r.id).value)},true)));
+  el('skinAccent').addEventListener('input',()=>writeCfg({accent:el('skinAccent').value}));
+  el('skinBase').addEventListener('click',event=>{
+    const btn=event.target.closest('button[data-base]');
+    if(btn)writeCfg({base:btn.dataset.base});
+  });
+  el('skinPickImage').onclick=()=>el('skinImage').click();
+  el('skinClearImage').onclick=()=>{writeCfg({image:''});note('已清除图片，底色继续按基调走')};
+  el('skinImage').addEventListener('change',async event=>{
+    const file=event.target.files&&event.target.files[0];
+    event.target.value='';
+    if(!file)return;
+    if(!/^image\//.test(file.type))return note('请选择图片文件',true);
+    if(file.size>20*1024*1024)return note('图片超过 20 MiB，换张小一点的',true);
+    note('正在压图……');
+    try{
+      const data=await prepareImage(file);
+      if(writeCfg({image:data}))note('已换成这张图，接着可以调透明度和蒙层');
+    }catch(error){note(error.message,true)}
+  });
+  el('skinReset').onclick=()=>{
+    cfg=null;
+    try{localStorage.removeItem(CFG_KEY)}catch(e){}
+    apply('custom');
+    paintSwatch();syncForm();
+    note('已恢复默认：暖橙主调、面板 72%、无图片');
+  };
+  el('skinCustomClose').onclick=()=>{el('skinCustom').hidden=true};
+  el('skinDone').onclick=()=>{el('skinCustom').hidden=true};
   el('skinToggle').onclick=e=>{e.stopPropagation();el('skinMenu').hidden=!el('skinMenu').hidden};
   document.addEventListener('click',e=>{
     const menu=el('skinMenu');
     if(!menu.hidden&&!menu.contains(e.target)&&!el('skinToggle').contains(e.target))menu.hidden=true;
   });
+  /* M4-MAIN 的 Escape 只管它自己的弹窗，自定义面板在这里补上。 */
+  document.addEventListener('keydown',event=>{
+    if(event.key==='Escape'&&!el('skinCustom').hidden)el('skinCustom').hidden=true;
+  });
+  /* 跨块契约：设置面板（M4-PREF）用这三个入口列皮肤、换皮肤、打开自定义外观。 */
+  window.PWB_SKIN={
+    list:()=>SKINS.map(s=>({id:s.id,name:s.name,current:document.body.dataset.skin===s.id,vars:varsFor(s),
+      swatch:s.id==='custom'?readCfg().accent:s.swatch})),
+    apply,
+    openCustom
+  };
   let saved=null;try{saved=localStorage.getItem(KEY)}catch(e){}
   apply(saved||'liquid-glass');
 })();
@@ -1333,5 +2125,202 @@ connect();
     drag=null;
     if(orderOf(grid)!==initial)persistOrder(grid);
   }
+})();
+</script>
+<script>
+/* ============================================================================
+   模块 M4-PREF：界面偏好 + 设置面板 + 悬停文字提示
+   - 四组偏好存在 localStorage（键 pwb.prefs），只往 <body> 上写类与 data-*，
+     对应外观全部由 M4-CSS 的 body[data-icon-style] / body[data-bar-style] / .nav-compact
+     规则承担，组件样式里不写任何判断
+   - 顶栏按钮与紧凑侧栏的「文字」是收起的，鼠标停上去由这里的浮层补回（读元素的 data-tip）
+   - 皮肤列表来自 window.PWB_SKIN（M4-SKIN 暴露），连接/同步来自 window.PWB_APP（M4-MAIN 暴露）
+   - 只碰 DOM 与偏好存储，不介入 M4-MAIN / M4-SKIN / M4-DRAG 的内部实现
+   ========================================================================== */
+(()=>{
+  const KEY='pwb.prefs';
+  /* 四组偏好的默认值；键名同时是按钮 data-* 的 dataset 键。 */
+  const DEFAULTS={nav:'expanded',barLabels:'off',barStyle:'circle',iconStyle:'plain'};
+  const SEGS=[
+    {id:'navModeSeg',ds:'nav',key:'nav'},
+    {id:'barLabelSeg',ds:'barlabel',key:'barLabels'},
+    {id:'barStyleSeg',ds:'barstyle',key:'barStyle'},
+    {id:'iconStyleSeg',ds:'iconstyle',key:'iconStyle'}
+  ];
+  const DEMO_ICONS=['grid','star','terminal','globe','lock','clock'];
+  const el=id=>document.getElementById(id);
+  let prefs=null,tip=null;
+
+  function read(){
+    if(prefs)return prefs;
+    prefs=Object.assign({},DEFAULTS);
+    try{
+      const saved=JSON.parse(localStorage.getItem(KEY)||'null');
+      if(saved&&typeof saved==='object')Object.assign(prefs,saved);
+    }catch(e){}
+    return prefs;
+  }
+  function write(patch){
+    prefs=Object.assign({},read(),patch);
+    try{localStorage.setItem(KEY,JSON.stringify(prefs))}catch(e){}
+    apply();syncForm();
+  }
+  /* 偏好 → body：CSS 只认这四个钩子。 */
+  function apply(){
+    const p=read(),body=document.body;
+    body.classList.toggle('nav-compact',p.nav==='compact');
+    body.classList.toggle('bar-labels',p.barLabels==='on');
+    body.dataset.barStyle=p.barStyle;
+    body.dataset.iconStyle=p.iconStyle;
+    const toggle=document.querySelector('[data-action="toggle-nav"] .nav-text');
+    if(toggle)toggle.textContent=p.nav==='compact'?'展开文字':'收起文字';
+  }
+  function note(text,bad){const box=el('settingsNotice');if(box){box.textContent=text||'';box.classList.toggle('bad',!!bad)}}
+
+  /* ------------------------- 悬停文字提示 ------------------------- */
+  function tipEl(){
+    if(!tip){tip=document.createElement('div');tip.className='hover-tip';document.body.append(tip)}
+    return tip;
+  }
+  /* 只在「文字已经被收起」的地方补提示，展开状态下不弹重复信息。 */
+  function collapsed(host){
+    if(host.closest('.sidebar'))return document.body.classList.contains('nav-compact');
+    if(host.closest('header'))return !document.body.classList.contains('bar-labels');
+    return true;
+  }
+  function showTip(host){
+    const text=host.dataset.tip;
+    if(!text||!collapsed(host))return;
+    const box=tipEl();
+    box.textContent=text;
+    box.classList.add('on');
+    const rect=host.getBoundingClientRect(),size=box.getBoundingClientRect();
+    let left=rect.right+10;
+    if(left+size.width>window.innerWidth-8)left=Math.max(8,rect.left-size.width-10);
+    const top=Math.max(8,Math.min(rect.top+(rect.height-size.height)/2,window.innerHeight-size.height-8));
+    box.style.left=Math.round(left)+'px';
+    box.style.top=Math.round(top)+'px';
+  }
+  function hideTip(){if(tip)tip.classList.remove('on')}
+  document.addEventListener('pointerover',event=>{
+    const host=event.target.closest?.('[data-tip]');
+    if(host)showTip(host);else hideTip();
+  },true);
+  document.addEventListener('pointerdown',hideTip,true);
+  document.addEventListener('focusin',hideTip,true);
+  window.addEventListener('scroll',hideTip,true);
+  window.addEventListener('blur',hideTip);
+
+  /* ------------------------------ 设置面板 ------------------------------ */
+  /* 皮肤网格：一层渐变、主色、文字色三格小色卡，点一下立即换。 */
+  function renderSkins(){
+    const grid=el('skinGrid'),api=window.PWB_SKIN;
+    if(!grid||!api)return;
+    grid.replaceChildren();
+    for(const skin of api.list()){
+      const card=document.createElement('button');
+      card.type='button';
+      card.className='skin-card'+(skin.current?' on':'');
+      card.dataset.skin=skin.id;
+      const strip=document.createElement('span');strip.className='strip';
+      ['--wash','--brand','--ink'].forEach(key=>{
+        const cell=document.createElement('i');
+        if(skin.vars[key])cell.style.background=skin.vars[key];
+        strip.append(cell);
+      });
+      const name=document.createElement('span');name.className='name';
+      const dot=document.createElement('span');dot.className='dot';dot.style.background=skin.swatch;
+      const label=document.createElement('span');label.textContent=skin.name;
+      name.append(dot,label);
+      const state=document.createElement('span');state.className='state';
+      state.textContent=skin.current?'正在使用':'';
+      card.append(strip,name,state);
+      card.onclick=()=>{api.apply(skin.id);note('已换成「'+skin.name+'」')};
+      grid.append(card);
+    }
+  }
+  /* 图标风格预览：把几枚图标按当前风格排一排，第三枚演示选中态。 */
+  function renderDemo(){
+    const box=el('iconDemo');
+    if(!box)return;
+    box.replaceChildren();
+    DEMO_ICONS.forEach((name,index)=>{
+      const cell=document.createElement('span');
+      cell.className='nav-icon'+(index===2?' demo-active':'');
+      cell.dataset.iconName=name;
+      iconInto(cell,name);
+      box.append(cell);
+    });
+  }
+  function paintStatus(){
+    const box=el('settingsStatus'),main=el('status');
+    if(box&&main)box.textContent=main.textContent;
+  }
+  /* 把偏好回填到设置面板的各个分段控件。 */
+  function syncForm(){
+    const p=read();
+    for(const seg of SEGS){
+      const box=el(seg.id);
+      if(!box)continue;
+      box.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset[seg.ds]===p[seg.key]));
+    }
+    const tipBox=el('navModeTip');
+    if(tipBox)tipBox.textContent=p.nav==='compact'
+      ?'侧栏只留图标，宽度收到 68px；鼠标停上去会浮出名称。'
+      :'图标和文字都显示。想贴边省地方就切成「只显示图标」。';
+    renderSkins();
+    renderDemo();
+  }
+  function openSettings(){
+    el('skinMenu').hidden=true;
+    note('');
+    syncForm();
+    paintStatus();
+    el('settingsModal').hidden=false;
+  }
+  function closeSettings(){el('settingsModal').hidden=true}
+
+  el('openSettings').onclick=openSettings;
+  document.querySelectorAll('[data-action="settings"]').forEach(button=>{button.onclick=openSettings});
+  document.querySelectorAll('[data-action="toggle-nav"]').forEach(button=>{
+    button.onclick=()=>{write({nav:read().nav==='compact'?'expanded':'compact'});hideTip()};
+  });
+  el('settingsClose').onclick=closeSettings;
+  el('settingsDone').onclick=closeSettings;
+  el('settingsModal').onclick=event=>{if(event.target===el('settingsModal'))closeSettings()};
+  el('settingsCustomSkin').onclick=()=>{closeSettings();window.PWB_SKIN.openCustom()};
+  /* 顶栏图标：上传 / 恢复默认都由 M4-MAIN 的 PWB_BRAND 处理，它自己回报状态。 */
+  el('settingsBrandPick').onclick=()=>window.PWB_BRAND.pick();
+  el('settingsBrandReset').onclick=()=>window.PWB_BRAND.reset();
+  el('settingsScan').onclick=async()=>{
+    note('正在同步文件夹……');
+    try{
+      const text=await window.PWB_APP.scanFolders();
+      note(text||'同步完成。');
+    }catch(error){note(error.message,true)}
+    paintStatus();
+  };
+  el('settingsConnect').onclick=async()=>{
+    try{
+      await window.PWB_APP.connect();
+      note('已重新连接。');
+    }catch(error){note(error.message,true)}
+    paintStatus();
+  };
+  for(const seg of SEGS){
+    el(seg.id).addEventListener('click',event=>{
+      const button=event.target.closest('button[data-'+seg.ds+']');
+      if(button)write({[seg.key]:button.dataset[seg.ds]});
+    });
+  }
+  /* M4-MAIN / M4-SKIN 的 Escape 只管各自的弹窗，设置面板在这里补上。 */
+  document.addEventListener('keydown',event=>{
+    if(event.key==='Escape'&&!el('settingsModal').hidden)closeSettings();
+  });
+  /* 皮肤在别处被换掉（顶栏菜单 / 自定义外观）时，设置面板里的选中态跟着走。 */
+  window.addEventListener('pwb:skin',renderSkins);
+
+  apply();
+  syncForm();
 })();
 </script></body></html>

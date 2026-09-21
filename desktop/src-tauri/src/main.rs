@@ -52,6 +52,9 @@ struct Item {
     source_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     target: Option<String>,
+    /// 仅「网址」类型使用：缺省 = 跟随系统默认浏览器；否则是浏览器 key 或 exe 绝对路径。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    browser: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     arguments: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -176,6 +179,8 @@ fn default_categories() -> Vec<Category> {
         cat("link", "网址", "网址", "link", "↗", "点击打开 · 可拖动排序", 1, true, false),
         cat("app", "应用", "应用", "app", "◈", "点击启动 · 保留原快捷方式", 2, true, false),
         cat("file", "文档", "文档", "file", "▤", "点击用默认程序打开", 3, true, false),
+        // 文件夹：kind 复用 file，条目只存绝对路径，点一下由 start_detached() 拉起资源管理器。
+        cat("folder", "文件夹", "文件夹", "file", "▦", "点击跳转到该文件夹", 4, true, false),
         cat("inbox", "待整理", "待整理", "inbox", "!", "补充分类后变成快捷图标", 90, true, true),
     ]
 }
@@ -508,6 +513,34 @@ fn read_catalog() -> Catalog {
         }
     }
 
+    // 内置分类补齐：上面「有 categories 就用它」会让后来新增的内置分类对已有数据不可见，
+    // 这里按 key（或 folder）把缺失的内置分类补进去，保证与 M1 看到同一套分类。
+    for preset in default_categories() {
+        if preset.inbox {
+            continue; // 收件箱由下面那一段专门补齐
+        }
+        let exists = catalog
+            .categories
+            .iter()
+            .any(|c| c.key == preset.key || c.folder == preset.folder);
+        if !exists {
+            let raw = RawCategory {
+                key: Some(preset.key.clone()),
+                label: Some(preset.label.clone()),
+                folder: Some(preset.folder.clone()),
+                kind: Some(preset.kind.clone()),
+                symbol: Some(preset.symbol.clone()),
+                note: Some(preset.note.clone()),
+                order: Some(preset.order),
+                builtin: Some(preset.builtin),
+                inbox: Some(preset.inbox),
+            };
+            if let Some(c) = normalize_category(&raw, catalog.categories.len()) {
+                catalog.categories.push(c);
+            }
+        }
+    }
+
     if !catalog.categories.iter().any(|c| c.inbox) {
         let inbox = default_categories().into_iter().find(|c| c.inbox).unwrap();
         catalog.categories.push(inbox);
@@ -647,6 +680,160 @@ fn is_absolute_drive(p: &str) -> bool {
     b.len() >= 3 && b[1] == b':' && (b[2] == b'\\' || b[2] == b'/')
 }
 
+/* ------------- 网址：本机浏览器探测（表与 M1 的 BROWSERS 保持一致） ------------- */
+
+/// key / 显示名 / [环境变量, exe 相对路径] 候选。系统默认浏览器不在表内（空值即默认）。
+fn browser_specs() -> Vec<(&'static str, &'static str, Vec<(&'static str, &'static str)>)> {
+    vec![
+        (
+            "chrome",
+            "Google Chrome",
+            vec![
+                ("ProgramFiles", r"Google\Chrome\Application\chrome.exe"),
+                ("ProgramFiles(x86)", r"Google\Chrome\Application\chrome.exe"),
+                ("LOCALAPPDATA", r"Google\Chrome\Application\chrome.exe"),
+            ],
+        ),
+        (
+            "edge",
+            "Microsoft Edge",
+            vec![
+                ("ProgramFiles", r"Microsoft\Edge\Application\msedge.exe"),
+                ("ProgramFiles(x86)", r"Microsoft\Edge\Application\msedge.exe"),
+            ],
+        ),
+        (
+            "firefox",
+            "Mozilla Firefox",
+            vec![
+                ("ProgramFiles", r"Mozilla Firefox\firefox.exe"),
+                ("ProgramFiles(x86)", r"Mozilla Firefox\firefox.exe"),
+            ],
+        ),
+        (
+            "brave",
+            "Brave",
+            vec![
+                ("ProgramFiles", r"BraveSoftware\Brave-Browser\Application\brave.exe"),
+                ("ProgramFiles(x86)", r"BraveSoftware\Brave-Browser\Application\brave.exe"),
+                ("LOCALAPPDATA", r"BraveSoftware\Brave-Browser\Application\brave.exe"),
+            ],
+        ),
+        (
+            "vivaldi",
+            "Vivaldi",
+            vec![
+                ("LOCALAPPDATA", r"Vivaldi\Application\vivaldi.exe"),
+                ("ProgramFiles", r"Vivaldi\Application\vivaldi.exe"),
+            ],
+        ),
+        (
+            "opera",
+            "Opera",
+            vec![
+                ("LOCALAPPDATA", r"Programs\Opera\opera.exe"),
+                ("ProgramFiles", r"Opera\opera.exe"),
+            ],
+        ),
+        (
+            "chromium",
+            "Chromium",
+            vec![
+                ("LOCALAPPDATA", r"Chromium\Application\chrome.exe"),
+                ("ProgramFiles", r"Chromium\Application\chrome.exe"),
+            ],
+        ),
+    ]
+}
+
+/// 探测本机已安装的浏览器：(key, 显示名, exe 绝对路径)。非 Windows 返回空表。
+fn detect_browsers() -> Vec<(String, String, String)> {
+    let mut found = Vec::new();
+    if !cfg!(windows) {
+        return found;
+    }
+    for (key, label, paths) in browser_specs() {
+        for (env_key, relative) in paths {
+            let base = match std::env::var(env_key) {
+                Ok(value) => value,
+                Err(_) => continue,
+            };
+            if base.is_empty() {
+                continue;
+            }
+            let full = Path::new(&base).join(relative);
+            if full.is_file() {
+                found.push((
+                    key.to_string(),
+                    label.to_string(),
+                    full.to_string_lossy().to_string(),
+                ));
+                break;
+            }
+        }
+    }
+    found
+}
+
+/// 条目的 browser 值 → 浏览器 exe 绝对路径。空值、未知 key、路径不存在都返回 None。
+fn resolve_browser_path(value: &str) -> Option<String> {
+    let text = value.trim();
+    if text.is_empty() {
+        return None;
+    }
+    if is_absolute_drive(text) || text.starts_with("\\\\") {
+        return if Path::new(text).is_file() {
+            Some(text.to_string())
+        } else {
+            None
+        };
+    }
+    detect_browsers()
+        .into_iter()
+        .find(|(key, _, _)| key.eq_ignore_ascii_case(text))
+        .map(|(_, _, path)| path)
+}
+
+/// 规范化 browser 字段：空 → None（跟随系统默认）；已知 key 或绝对路径保留；其它丢弃。
+fn normalize_browser(value: &str) -> Option<String> {
+    let text = value.trim();
+    if text.is_empty() {
+        return None;
+    }
+    if is_absolute_drive(text) || text.starts_with("\\\\") {
+        return Some(text.chars().take(260).collect());
+    }
+    browser_specs()
+        .iter()
+        .map(|(key, _, _)| *key)
+        .find(|key| key.eq_ignore_ascii_case(text))
+        .map(|key| key.to_string())
+}
+
+/// 用指定浏览器打开网址（DETACHED，不阻塞界面）。
+fn start_with_browser(exe: &str, url: &str) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        Command::new(exe)
+            .arg(url)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .creation_flags(0x0000_0008) // DETACHED_PROCESS
+            .spawn()
+            .map_err(|e| format!("无法启动浏览器：{}", e))?;
+    }
+    #[cfg(not(windows))]
+    {
+        Command::new(exe)
+            .arg(url)
+            .spawn()
+            .map_err(|e| format!("无法启动浏览器：{}", e))?;
+    }
+    Ok(())
+}
+
 fn normalize_url(value: &str) -> Option<String> {
     let text = value.trim();
     if text.is_empty() {
@@ -752,6 +939,7 @@ fn scan(catalog: &mut Catalog) -> Result<(Vec<Item>, Vec<Item>), String> {
                 tags: Vec::new(),
                 source_path: Some(source_path.clone()),
                 target: None,
+                browser: None,
                 arguments: None,
                 working_directory: None,
                 icon_location: None,
@@ -868,6 +1056,8 @@ struct CreateItemInput {
     #[serde(default)]
     target: String,
     #[serde(default)]
+    browser: String,
+    #[serde(default)]
     path: String,
     #[serde(default)]
     icon: Option<String>,
@@ -888,6 +1078,8 @@ struct CompleteMetadataInput {
     #[serde(default)]
     target: String,
     #[serde(default)]
+    browser: String,
+    #[serde(default)]
     icon: Option<String>,
     #[serde(default)]
     new_category: Option<NewCategoryInput>,
@@ -906,6 +1098,8 @@ struct UpdateItemInput {
     clear_icon: bool,
     #[serde(default)]
     target: String,
+    #[serde(default)]
+    browser: String,
 }
 
 #[derive(Deserialize)]
@@ -942,6 +1136,16 @@ fn get_items() -> Value {
 fn get_categories() -> Value {
     let catalog = read_catalog();
     json!({ "categories": catalog.categories })
+}
+
+/// 本机已安装的浏览器（不含「系统默认」这一项，条目 browser 为空即跟随系统）。
+#[tauri::command]
+fn list_browsers() -> Value {
+    let browsers: Vec<Value> = detect_browsers()
+        .into_iter()
+        .map(|(key, label, path)| json!({ "key": key, "label": label, "path": path }))
+        .collect();
+    json!({ "browsers": browsers })
 }
 
 #[tauri::command]
@@ -1288,6 +1492,7 @@ fn create_item(input: CreateItemInput) -> Result<Value, String> {
             .collect(),
         source_path: None,
         target: None,
+        browser: None,
         arguments: None,
         working_directory: None,
         icon_location: None,
@@ -1326,6 +1531,7 @@ fn create_item(input: CreateItemInput) -> Result<Value, String> {
             Some(u) => item.target = Some(u),
             None => return Err("请输入有效的 http 或 https 网址。".into()),
         }
+        item.browser = normalize_browser(&input.browser);
     } else if category.kind == "app" {
         let source = if !input.path.is_empty() {
             input.path.clone()
@@ -1482,6 +1688,9 @@ fn complete_metadata(input: CompleteMetadataInput) -> Result<Value, String> {
     if !target.is_empty() {
         item.target = Some(target);
     }
+    if category.kind == "link" {
+        item.browser = normalize_browser(&input.browser);
+    }
     item.status = "complete".into();
     item.updated_at = now();
     let result = item.clone();
@@ -1535,6 +1744,10 @@ fn update_item(input: UpdateItemInput) -> Result<Value, String> {
         } else if kind != "script" {
             catalog.items[idx].target = Some(target);
         }
+    }
+    /* browser 只对「网址」类型有意义：传空即清掉（回到跟随系统），其它类型忽略该字段。 */
+    if kind == "link" {
+        catalog.items[idx].browser = normalize_browser(&input.browser);
     }
     catalog.items[idx].updated_at = now();
     let result = catalog.items[idx].clone();
@@ -1678,12 +1891,36 @@ fn open_item(input: OpenItem) -> Result<Value, String> {
         }
     };
 
-    start_detached(&target)?;
+    /* 「网址」类型可以指定浏览器：指定了就按它启动；找不到那个浏览器时不算错误，
+       回落系统默认并在返回值里带 warning 提示一次。 */
+    let browser = if kind == "link" {
+        catalog.items[idx]
+            .browser
+            .clone()
+            .filter(|b| !b.trim().is_empty())
+    } else {
+        None
+    };
+    let mut warning = String::new();
+    match browser {
+        Some(wanted) => match resolve_browser_path(&wanted) {
+            Some(exe) => start_with_browser(&exe, &target)?,
+            None => {
+                warning = "指定的浏览器在本机找不到，已改用系统默认浏览器。".into();
+                start_detached(&target)?;
+            }
+        },
+        None => start_detached(&target)?,
+    }
     catalog.items[idx].open_count += 1;
     catalog.items[idx].last_opened_at = now();
     catalog.items[idx].updated_at = now();
     write_catalog(&catalog)?;
-    Ok(json!({ "ok": true }))
+    Ok(if warning.is_empty() {
+        json!({ "ok": true })
+    } else {
+        json!({ "ok": true, "warning": warning })
+    })
 }
 
 /* ----------------------------- 入口 ----------------------------- */
@@ -1694,6 +1931,7 @@ fn main() {
             get_status,
             get_items,
             get_categories,
+            list_browsers,
             scan_items,
             create_category,
             update_category,

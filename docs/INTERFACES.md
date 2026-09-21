@@ -27,7 +27,7 @@
 | `M1` | 浏览器后端 | `server/server.js` | [interfaces/http-api.md](interfaces/http-api.md) | 本机 HTTP 服务，`127.0.0.1:8765` |
 | `M2` | 快捷方式/图标解析 | `server/shortcut.js` | [interfaces/shortcut-lib.md](interfaces/shortcut-lib.md) | 被 `M1` 调用的纯函数库，不联网、不写盘 |
 | `M3` | 桌面客户端 | `desktop/src-tauri/`（`src/main.rs`、`tauri.conf.json`） | [interfaces/tauri-ipc.md](interfaces/tauri-ipc.md) | Tauri 外壳 + IPC 命令 |
-| `M4` | 前端界面 | `app/index.html` | [interfaces/app-ui.md](interfaces/app-ui.md) | 单文件界面；内部含 `M4-CSS` / `M4-MAIN` / `M4-SKIN` / `M4-DRAG` 四个子模块 |
+| `M4` | 前端界面 | `app/index.html` | [interfaces/app-ui.md](interfaces/app-ui.md) | 单文件界面；内部含 `M4-CSS` / `M4-MAIN` / `M4-SKIN` / `M4-DRAG` / `M4-PREF` 五个子模块 |
 | `M5` | 构建与验证 | `package.json`、`build-client.cmd`、`start-server.cmd`、`.github/workflows/` | [interfaces/build-and-verify.md](interfaces/build-and-verify.md) | 编译、校验、发布 |
 | `M6` | 图标素材 | `assets/icons/` | 见 [interfaces/data-catalog.md](interfaces/data-catalog.md) 的「图标」一节 | 生成 128×128 PNG 的素材与流程 |
 
@@ -136,7 +136,9 @@
 
 `/api/items/reorder`（与 `reorder_items`）的语义是「`ids` 的下标即新的 `order` 值，**只更新出现在 `ids` 里的条目**」——所以不再有「后提交的网格覆盖整个 `order` 空间」的问题。
 
-残留点：`order` 仍是**全体条目共用的一个数字空间**，两个不同分类的条目可能取到相同的 `order`。因为每个视图按 `category` 过滤后再排序，跨视图撞号通常无影响；同一视图内撞号时由 `score()` 兜底。
+残留点：`order` 仍是**全体条目共用的一个数字空间**，两个不同分类的条目可能取到相同的 `order`。因为每个视图按 `category` 过滤后再排序，跨视图撞号通常无影响；同一视图内撞号时由**原始下标**兜底。
+
+> 相关的 `M4` 行为（2026-09-21 起）：**分类网格的位置只由 `order` 决定，点击条目不会改变位置**。`score()` 仅用于 `#frequent` 常用区排序。详见 [interfaces/app-ui.md](interfaces/app-ui.md) 第 3 节。
 
 ### 6.3 已修复的偏差（留档，**不要再按旧描述去修**）
 
@@ -161,6 +163,14 @@
 | 前端能否直连磁盘 | ❌（只能走 HTTP） | ❌（只能走 IPC） |
 
 **任何一端新增接口，都要同时补另一端的实现与两份接口文档**，否则前端在另一端会静默失败（`request()` 会抛「桌面端还没有实现 …」）。
+
+### 6.5 分类 `symbol` 只存得下 2 个字符（低风险，**待办**）
+
+`M1` 的 `server.js` 与 `M3` 的 `main.rs` 里的 `normalizeCategory` 都对 `symbol` 写了 `.slice(0, 2)`——`symbol` 只保留 2 个字符。
+
+这是「`symbol` 是个字符型占位符号」（`▤`、`◆`、`↗`）的时代留下的限制。而前端现在的图标选择器会把**图标名**当 `symbol` 发出去（例如 `lock` / `archive` / `clock`），后端会截成 `lo` / `ar` / `cl`，前端认不出，于是回落到「按名称关键词猜 → 按 `kind` 取默认图标」（解析顺序见 [app-ui.md](interfaces/app-ui.md#54-内置图标集)）。
+
+现状影响有限（常见分类名都能命中关键词表），但「给自建分类挑一个冷门图标」会失效。要根治得同时放宽这两处长度限制，属 `M0` 字段语义变更，**先确认再动手**。
 
 ---
 

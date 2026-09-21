@@ -38,12 +38,29 @@ const KIND_APP = 'app';
 const KIND_FILE = 'file';
 const KINDS = [KIND_SCRIPT, KIND_LINK, KIND_APP, KIND_FILE];
 
+/* 本机浏览器探测表：key / 显示名 / [环境变量, exe 相对路径] 候选。
+   只列「按 key 存字段」用得上的常见浏览器；未收录的用绝对路径存（见 normalizeBrowser）。
+   系统默认浏览器不在这里——条目 browser 为空即代表跟随系统默认。 */
+const BROWSERS = [
+  { key: 'chrome', label: 'Google Chrome', paths: [['ProgramFiles', 'Google\\Chrome\\Application\\chrome.exe'], ['ProgramFiles(x86)', 'Google\\Chrome\\Application\\chrome.exe'], ['LOCALAPPDATA', 'Google\\Chrome\\Application\\chrome.exe']] },
+  { key: 'edge', label: 'Microsoft Edge', paths: [['ProgramFiles', 'Microsoft\\Edge\\Application\\msedge.exe'], ['ProgramFiles(x86)', 'Microsoft\\Edge\\Application\\msedge.exe']] },
+  { key: 'firefox', label: 'Mozilla Firefox', paths: [['ProgramFiles', 'Mozilla Firefox\\firefox.exe'], ['ProgramFiles(x86)', 'Mozilla Firefox\\firefox.exe']] },
+  { key: 'brave', label: 'Brave', paths: [['ProgramFiles', 'BraveSoftware\\Brave-Browser\\Application\\brave.exe'], ['ProgramFiles(x86)', 'BraveSoftware\\Brave-Browser\\Application\\brave.exe'], ['LOCALAPPDATA', 'BraveSoftware\\Brave-Browser\\Application\\brave.exe']] },
+  { key: 'vivaldi', label: 'Vivaldi', paths: [['LOCALAPPDATA', 'Vivaldi\\Application\\vivaldi.exe'], ['ProgramFiles', 'Vivaldi\\Application\\vivaldi.exe']] },
+  { key: 'opera', label: 'Opera', paths: [['LOCALAPPDATA', 'Programs\\Opera\\opera.exe'], ['ProgramFiles', 'Opera\\opera.exe']] },
+  { key: 'chromium', label: 'Chromium', paths: [['LOCALAPPDATA', 'Chromium\\Application\\chrome.exe'], ['ProgramFiles', 'Chromium\\Application\\chrome.exe']] }
+];
+const BROWSER_KEYS = new Set(BROWSERS.map((entry) => entry.key));
+
 /** 分类注册表：kind 决定编辑器长什么样、扫描时归到哪、点击后怎么打开。 */
 const DEFAULT_CATEGORIES = [
   { key: 'script', label: '脚本', folder: '脚本', kind: KIND_SCRIPT, symbol: '▣', note: '点击运行 · 可拖动排序', order: 0, builtin: true },
   { key: 'link', label: '网址', folder: '网址', kind: KIND_LINK, symbol: '↗', note: '点击打开 · 可拖动排序', order: 1, builtin: true },
   { key: 'app', label: '应用', folder: '应用', kind: KIND_APP, symbol: '◈', note: '点击启动 · 保留原快捷方式', order: 2, builtin: true },
   { key: 'file', label: '文档', folder: '文档', kind: KIND_FILE, symbol: '▤', note: '点击用默认程序打开', order: 3, builtin: true },
+  // 文件夹：kind 复用 file（KINDS 只有四种），条目只存绝对路径、不建 data/ 下的实体文件，
+  // 点一下由 startDetached() 拉起资源管理器。编辑器复用「文件或文件夹路径」那一组字段。
+  { key: 'folder', label: '文件夹', folder: '文件夹', kind: KIND_FILE, symbol: '▦', note: '点击跳转到该文件夹', order: 4, builtin: true },
   { key: 'inbox', label: '待整理', folder: '待整理', kind: 'inbox', symbol: '!', note: '补充分类后变成快捷图标', order: 90, builtin: true, inbox: true }
 ];
 
@@ -122,6 +139,15 @@ function readCatalog() {
       catalog.categories.push({ key: slugKey(name), label: name, folder: name, kind: KIND_FILE, symbol: '▤', note: '', order: catalog.categories.length, builtin: false, inbox: false });
     }
   }
+  // 内置分类补齐：上面那句「有 categories 就用它」会让**后来新增的**内置分类对已有数据不可见，
+  // 所以这里按 key（或 folder）把缺失的内置分类补进去。
+  // 用 folder 一起判断是为了避免与用户已建的同名目录打架（ensureDirectories 会建同名文件夹）。
+  for (const entry of DEFAULT_CATEGORIES) {
+    if (entry.inbox) continue; // 收件箱由下面那一段专门补齐
+    const exists = catalog.categories.some((existing) => existing.key === entry.key || existing.folder === entry.folder);
+    if (!exists) catalog.categories.push(normalizeCategory(entry, catalog.categories.length));
+  }
+
   if (!catalog.categories.some((entry) => entry.inbox)) {
     const inbox = DEFAULT_CATEGORIES.find((entry) => entry.inbox);
     catalog.categories.push(normalizeCategory(inbox, 90));
@@ -395,6 +421,53 @@ function normalizeIcon(value) {
   return typeof value === 'string' && value.startsWith('data:image/') ? value.slice(0, 2 * 1024 * 1024) : '';
 }
 
+/** 探测本机已安装的浏览器。非 Windows 直接返回空表。 */
+function detectBrowsers() {
+  if (process.platform !== 'win32') return [];
+  const found = [];
+  for (const browser of BROWSERS) {
+    for (const [envKey, relative] of browser.paths) {
+      const base = process.env[envKey];
+      if (!base) continue;
+      const full = path.join(base, relative);
+      if (fs.existsSync(full)) {
+        found.push({ key: browser.key, label: browser.label, path: full });
+        break;
+      }
+    }
+  }
+  return found;
+}
+
+/** 条目的 browser 值 → 浏览器 exe 绝对路径。空值、未知 key、路径不存在都返回 ''。 */
+function resolveBrowserPath(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (/^[a-zA-Z]:[\\/]/.test(text) || text.startsWith('\\\\')) {
+    return fs.existsSync(text) ? text : '';
+  }
+  const hit = detectBrowsers().find((entry) => entry.key === text.toLowerCase());
+  return hit ? hit.path : '';
+}
+
+/** 规范化 browser 字段：空串=跟随系统默认；已知 key 或绝对路径原样保留；其它一律丢弃。 */
+function normalizeBrowser(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (/^[a-zA-Z]:[\\/]/.test(text) || text.startsWith('\\\\')) return text.slice(0, 260);
+  const key = text.toLowerCase();
+  return BROWSER_KEYS.has(key) ? key : '';
+}
+
+/** 用指定浏览器打开网址。没指定、或指定的浏览器在本机找不到时返回 false，由调用方回落系统默认。 */
+function openUrl(url, browser) {
+  const exe = resolveBrowserPath(browser);
+  if (!exe) return false;
+  const child = spawn(exe, [url], { detached: true, stdio: 'ignore', windowsHide: true });
+  child.unref();
+  return true;
+}
+
 function startDetached(target) {
   const child = spawn('cmd.exe', ['/c', 'start', '', target], { detached: true, stdio: 'ignore', windowsHide: true });
   child.unref();
@@ -436,6 +509,10 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'GET' && url.pathname === '/api/items') {
       const catalog = readCatalog();
       return send(response, 200, { items: catalog.items, categories: catalog.categories, kinds: KINDS });
+    }
+
+    if (request.method === 'GET' && url.pathname === '/api/browsers') {
+      return send(response, 200, { browsers: detectBrowsers() });
     }
 
     if (request.method === 'POST' && url.pathname === '/api/scan') {
@@ -580,6 +657,8 @@ const server = http.createServer(async (request, response) => {
         const normalized = normalizeUrl(input.target || input.url);
         if (!normalized) return send(response, 400, { error: '请输入有效的 http 或 https 网址。' });
         item.target = normalized;
+        const browser = normalizeBrowser(input.browser);
+        if (browser) item.browser = browser;
       } else if (category.kind === KIND_APP) {
         const sourcePath = String(input.path || input.target || '').trim();
         if (!sourcePath || !fs.existsSync(sourcePath)) return send(response, 400, { error: '找不到该程序或快捷方式文件。' });
@@ -656,6 +735,10 @@ const server = http.createServer(async (request, response) => {
       if (icon) item.icon = icon;
       const target = String(input.target || '').trim();
       if (target) item.target = target;
+      if (category.kind === KIND_LINK) {
+        const browser = normalizeBrowser(input.browser);
+        if (browser) item.browser = browser; else delete item.browser;
+      }
       item.status = 'complete';
       item.updatedAt = new Date().toISOString();
       writeCatalog(catalog);
@@ -675,8 +758,8 @@ const server = http.createServer(async (request, response) => {
       if (icon) item.icon = icon;
       if (input.clearIcon) item.icon = '';
       const target = String(input.target || '').trim();
+      const category = categoryOf(catalog, item.category);
       if (target) {
-        const category = categoryOf(catalog, item.category);
         if (category?.kind === KIND_LINK) {
           const normalized = normalizeUrl(target);
           if (!normalized) return send(response, 400, { error: '请输入有效的 http 或 https 网址。' });
@@ -684,6 +767,11 @@ const server = http.createServer(async (request, response) => {
         } else if (category?.kind !== KIND_SCRIPT) {
           item.target = target;
         }
+      }
+      /* browser 只对「网址」类型有意义：传空即清掉（回到跟随系统），其它类型忽略该字段。 */
+      if (category?.kind === KIND_LINK) {
+        const browser = normalizeBrowser(input.browser);
+        if (browser) item.browser = browser; else delete item.browser;
       }
       item.updatedAt = new Date().toISOString();
       writeCatalog(catalog);
@@ -748,12 +836,21 @@ const server = http.createServer(async (request, response) => {
         if (!target || !fs.existsSync(target)) return send(response, 400, { error: '找不到这个文件，可能已被移动。' });
       }
 
-      startDetached(target);
+      /* 「网址」类型可以指定浏览器（条目的 browser 字段）：指定了就按它启动；
+         那个浏览器在本机找不到时不算错误，回落系统默认并在响应里带 warning 提示一次。 */
+      let opened = false;
+      let warning = '';
+      if (kind === KIND_LINK && item.browser) {
+        opened = openUrl(target, item.browser);
+        if (!opened) warning = '指定的浏览器在本机找不到，已改用系统默认浏览器打开。';
+      }
+      if (!opened) startDetached(target);
+
       item.openCount = Number(item.openCount || 0) + 1;
       item.lastOpenedAt = new Date().toISOString();
       item.updatedAt = item.lastOpenedAt;
       writeCatalog(catalog);
-      return send(response, 200, { ok: true });
+      return send(response, 200, warning ? { ok: true, warning } : { ok: true });
     }
 
     return send(response, 404, { error: '接口不存在。' });

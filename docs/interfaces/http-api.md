@@ -37,9 +37,12 @@
 | --- | --- | --- | --- | --- |
 | `GET` | `/api/status` | — | `{ ok: true, root, dataPath }` | — |
 | `GET` | `/api/items` | — | `{ items: Item[], categories: Category[], kinds: string[] }` | — |
+| `GET` | `/api/browsers` | — | `{ browsers: Browser[] }` | — |
 | `POST` | `/api/scan` | `{}` | `{ discovered: Item[], removed: Item[], items: Item[], categories: Category[] }` | — |
 
 `Item` / `Category` 的结构以 [data-catalog.md](data-catalog.md) 为准。`kinds` 恒为 `["script","link","app","file"]`。
+
+`Browser` = `{ key, label, path }`：**本机已安装的浏览器**，`key` 是内置标识（`chrome` / `edge` / `firefox` / `brave` / `vivaldi` / `opera` / `chromium`），`path` 是 exe 绝对路径。表来自 `server.js` 顶部的 `BROWSERS` 常量（按 `ProgramFiles` / `ProgramFiles(x86)` / `LOCALAPPDATA` 拼路径逐个探存在性）。**它不包含「系统默认浏览器」**——条目的 `browser` 为空即代表跟随系统默认，所以调用方只需要在列表前面自己加一个「跟随系统默认」选项。非 Windows 平台返回空数组。
 
 ### 2. 分类管理
 
@@ -72,10 +75,10 @@
 | 方法 | 路径 | 请求 | 响应 | 错误 |
 | --- | --- | --- | --- | --- |
 | `POST` | `/api/items` | 见下 | `201 { item, categories }` | `400` 分类无效/名称为空/网址或路径无效；`409` 同名脚本已存在且未传 `overwrite` |
-| `POST` | `/api/items/update` | `{ id, title, description?, tags?, icon?, clearIcon?, target? }` | `{ item }` | `400` 找不到条目 / 名称为空 / 网址无效 |
+| `POST` | `/api/items/update` | `{ id, title, description?, tags?, icon?, clearIcon?, target?, browser? }` | `{ item }` | `400` 找不到条目 / 名称为空 / 网址无效 |
 | `POST` | `/api/items/delete` | `{ id }` | `{ ok: true }` | `404` 找不到条目 |
 | `POST` | `/api/items/reorder` | `{ ids: string[] }` | `{ items }` | `400` `ids` 不是数组 |
-| `POST` | `/api/items/metadata` | `{ id, title, category, description?, tags?, icon?, target?, newCategory? }` | `{ item, categories }` | `400` 条目不存在/名称为空/分类无效/网址分类收到非 `.url` |
+| `POST` | `/api/items/metadata` | `{ id, title, category, description?, tags?, icon?, target?, browser?, newCategory? }` | `{ item, categories }` | `400` 条目不存在/名称为空/分类无效/网址分类收到非 `.url` |
 | `POST` | `/api/items/hide` | `{ id }` | `{ item }` | `404` 条目不存在或不是 `needs_metadata` |
 | `POST` | `/api/items/open` | `{ id }` | `{ ok: true }` | `404` 条目不存在或不可打开；`400` 目标文件/网址无效 |
 
@@ -97,6 +100,8 @@
 
   // kind = link
   "target": "https://example.com", // 或以 url 传入；会自动补 https:// 并校验 http/https
+  "browser": "chrome",            // 可选：只对 link 生效。留空/不传 = 跟随系统默认浏览器；
+                                  // 也可以是本机浏览器 exe 的绝对路径（用于未收录的浏览器）
 
   // kind = app
   "path": "C:\\...\\示例.lnk",   // 或 target；必须是存在的文件
@@ -114,7 +119,7 @@
 | `script` | 用 `cmd /c start` 打开 `data/脚本|文档/...` 里的真实文件 |
 | `link` | 必须是 `http(s)://`，交给系统默认浏览器 |
 | `app` | 优先用复制进 `data/应用/` 的 `.lnk`，否则回落到 `target` |
-| `file` | `target` 或 `sourcePath` 解析出的绝对路径 |
+| `file` | `target` 或 `sourcePath` 解析出的绝对路径。**目录同样适用**——内置的「文件夹」分类（`key: folder`，`kind` 仍是 `file`，见 [data-catalog.md](data-catalog.md)）就是靠这一条跳转到本地任意目录，由资源管理器打开 |
 
 成功后 `openCount += 1`、`lastOpenedAt = now`。「常用」网格按 `openCount * 12 + 30 天内衰减分` 排序。
 
@@ -143,3 +148,4 @@
 | --- | --- |
 | 2026-09-20 | 首次编写。冻结 17 条路由（含 `OPTIONS`）、8 MiB 请求上限、错误码约定、按 `kind` 分流的请求体。标注 `metadata`/`hide` 两个接口当前无调用方。 |
 | 2026-09-20 | 同步前端接入后的状态：`/api/items/metadata`（待补充归类，含 `newCategory` 内联新建）与 `/api/items/hide`（右键「忽略」）都已有调用方；改正 `reorder` 描述——它只更新传入 `ids` 里的条目，不再整段覆盖 `order`。 |
+| 2026-09-21 | 新增内置分类「文件夹」（`key: folder`，`kind` 仍是 `file`，`KINDS` 未变、`/api/items` 的 `kinds` 仍为四个值）；`readCatalog()` 增加内置分类补齐，于是 `categories` 会对已有 `catalog.json` 多出这一项。`/api/items/open` 的 `file` 分支明确支持目录（交给资源管理器打开）。 |
