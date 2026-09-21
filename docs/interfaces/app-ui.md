@@ -8,7 +8,7 @@
 
 | 子模块 | 位置 | 职责 |
 | --- | --- | --- |
-| `M4-CSS` | `<head>` 内的 `<style>` | 全部样式，含拖拽视觉（`.drag-ghost` 等）、各皮肤专属背景规则、两版图标风格与两版顶栏的规则 |
+| `M4-CSS` | `<head>` 内的 `<style>` | 全部样式，含拖拽视觉（`.drag-ghost` 等）、各皮肤专属背景规则、多版图标风格与两版顶栏的规则 |
 | `M4-MAIN` | 第一个 `<script>` 块 | 页面骨架、渲染、表单、上下文菜单、**内置图标集 `ICONS`**、**双通道适配层 `request()`** |
 | `M4-SKIN` | 第二个 `<script>` 块（IIFE） | 皮肤注册表、CSS 变量注入、皮肤切换菜单、localStorage 记忆 |
 | `M4-DRAG` | 第三个 `<script>` 块（IIFE） | 图标拖拽排序（Pointer Events + FLIP 动画） |
@@ -52,7 +52,7 @@ async function request(path, options)                   // 唯一的后端调用
 >
 > 任何新增后端调用**必须**经过 `request()`，并且**必须**在 `IPC_MAP` 里补一条记录，否则桌面版会静默失败。契约清单见 [tauri-ipc.md](tauri-ipc.md) 第 4 节。
 >
-> `IPC_MAP` 目前登记 14 条：`GET /status` `/items` `/categories` `/shortcuts` `/shortcuts/icon`，`POST /scan` `/categories` `/items` `/items/metadata` `/items/update` `/items/delete` `/items/reorder` `/items/open` `/items/hide`。两端都已实现，没有只在一端存在的路径。
+> `IPC_MAP` 目前登记 17 条：`GET /status` `/items` `/categories` `/shortcuts` `/shortcuts/icon` `/browsers`，`POST /scan` `/categories` `/categories/update` `/categories/delete` `/items` `/items/metadata` `/items/update` `/items/delete` `/items/reorder` `/items/open` `/items/hide`。两端都已实现，没有只在一端存在的路径。
 
 ### 2. DOM 契约（`M4-MAIN` 与 `M4-DRAG` 之间的接口）
 
@@ -63,7 +63,7 @@ async function request(path, options)                   // 唯一的后端调用
 | 区域 | ID |
 | --- | --- |
 | 顶栏 | `barActions`（按钮组容器）、`connect` `scan` `openAdd` `openSettings` `skinToggle` `skinMenu`（后两个归 `M4-SKIN`） `winMin` `winMax` `winClose`（后三个归自绘标题栏，仅桌面端显示）。按钮一律是 `.bar-btn`，图标由 `data-icon` 声明 |
-| 设置面板（`M4-PREF`） | `settingsModal` `settingsTitle` `settingsClose` `settingsDone` `settingsNotice`、皮肤网格 `skinGrid` + `settingsCustomSkin`、顶栏图标 `settingsBrandPick` `settingsBrandReset` `settingsBrandNotice`、侧栏开关 `navModeSeg` `navModeTip`、顶栏开关 `barLabelSeg` `barStyleSeg`、图标风格开关 `iconStyleSeg` + 预览 `iconDemo`、数据区 `settingsStatus` `settingsScan` `settingsConnect`。另有 `[data-action="settings"]`（顶栏按钮与侧栏底部入口）与 `[data-action="toggle-nav"]`（侧栏底部折叠开关）按选择器绑定，不是 ID |
+| 设置面板（`M4-PREF`） | `settingsModal` `settingsTitle` `settingsClose` `settingsDone` `settingsNotice`、皮肤网格 `skinGrid` + `settingsCustomSkin`、顶栏图标 `settingsBrandPick` `settingsBrandReset` `settingsBrandNotice`、侧边栏版式/开关 `navStyleSeg` `navModeSeg` `navModeTip`、顶栏开关 `barLabelSeg` `barStyleSeg`、图标风格开关 `iconStyleSeg` + 预览 `iconDemo`、数据区 `settingsStatus` `settingsScan` `settingsConnect`。另有 `[data-action="settings"]`（顶栏按钮与侧栏底部入口）与 `[data-action="toggle-nav"]`（侧栏底部折叠开关）按选择器绑定，不是 ID |
 | 自定义外观面板（`M4-SKIN`） | `skinCustom` `skinCustomTitle` `skinCustomClose` `skinPreview` `skinPreviewTip` `skinPickImage` `skinClearImage` `skinImage` `skinBase` `skinBaseTip` `skinImageAlpha` `skinImageAlphaOut` `skinVeil` `skinVeilOut` `skinImageBlur` `skinImageBlurOut` `skinPanelAlpha` `skinPanelAlphaOut` `skinPanelBlur` `skinPanelBlurOut` `skinAccent` `skinAccentOut` `skinNotice` `skinReset` `skinDone`；另有 `skinCustomOpen`（菜单里「✎ 自定义外观…」入口）由 `M4-SKIN` 运行时生成，不在静态标记里 |
 | 侧栏 | `nav`（导航按钮由 `renderNav()` 动态生成，**没有写死的分类按钮**） |
 | 网格容器 | `frequent` `pending` |
@@ -83,6 +83,7 @@ async function request(path, options)                   // 唯一的后端调用
 | `.icon-grid` | 图标容器。**`id === 'frequent'` 的网格不参与拖拽**，这是唯一被硬编码排除的容器 |
 | `.content-section[data-section]` | 区块，取值 `frequent` / `<分类 key>` / `inbox`，与 `.nav-link[data-view]` 的取值一一对应，由 `applyView()` 控制显隐 |
 | `.nav-link[data-view]` | 侧边栏导航，取值 `all` / `frequent` / `<分类 key>` / `inbox` |
+| `.nav-link.category-link[data-category-key]` | 由数据驱动分类生成的侧栏导航；`M4-DRAG` 只允许它们拖动，`data-category-key` 是 `Category.key`。总览、常用、待补充没有此类，位置固定 |
 | `.kfields[data-kind]` | 编辑器里**按类型分流**的字段组，取值 `script` / `link` / `app` / `file`。`setEditorKind()` 只显示与当前类型匹配的那一组 |
 | `.pick-row` / `.pick-detail` | 开始菜单选择器的列表行与右侧详情 |
 | `.kind-card` | 分类新建/归类弹窗里的类型选择卡 |
@@ -91,7 +92,8 @@ async function request(path, options)                   // 唯一的后端调用
 | `[data-icon]` | 声明图标的宿主元素（`.bar-btn` 内部的 `.bar-ic`、侧栏底部按钮内部的 `.nav-icon`、窗口按钮自身）。启动时由 `hydrateIcons()` 把 `iconSvg()` 的结果填进去 |
 | `[data-tip]` | 悬停文字提示的文本来源；只有「文字已被收起」时才由 `M4-PREF` 浮出来 |
 | `[data-action="settings"]` / `[data-action="toggle-nav"]` | 打开设置面板 / 收起展开侧栏文字，`M4-PREF` 按选择器绑定（顶栏与侧栏底部各有一处） |
-| `body[data-icon-style]` | 图标风格：`plain`（极简线稿，默认）/ `tile`（圆角方块垫底） |
+| `body[data-icon-style]` | 图标风格：`plain`（极简线稿，默认）/ `tile`（圆角方块垫底）/ `abstract`（抽象高级符号）/ `readable`（直观重绘图标）。后两者会切换 SVG 路径本体，不只是改容器外观 |
+| `body[data-nav-style]` | 侧边栏版式：`card`（信息卡片，默认）/ `pill`（柔和胶囊）/ `rail`（悬浮导轨）；仅改变外观，可与紧凑态组合 |
 | `body[data-bar-style]` | 顶栏样式：`circle`（各自独立圆形，默认）/ `capsule`（收进一枚胶囊） |
 | `body.nav-compact` | 侧栏只显示图标（宽度 `--nav-w` 收到 68px） |
 | `body.bar-labels` | 顶栏按钮显示文字（默认不带，只显示图标） |
@@ -101,7 +103,9 @@ async function request(path, options)                   // 唯一的后端调用
 | 函数 | 归属 | 被谁调用 | 说明 |
 | --- | --- | --- | --- |
 | `persistOrder(grid)` | `M4-MAIN` | `M4-DRAG` 的 `endDrag()` | 拖拽结束时把网格内 `data-id` 顺序提交给后端。**`M4-MAIN` 改名/删掉它，拖拽就会在结束时抛错。** 它内部已有 `if (ids.length < 2) return` 保护 |
+| `persistCategoryOrder(nav)` | `M4-MAIN` | `M4-DRAG` 的 `endNavDrag()` | 读取 `.category-link` 顺序并按序更新 `Category.order`；请求必须串行，避免并发写 `catalog.json` 相互覆盖 |
 | `iconSvg(name)` / `iconInto(box,name)` | `M4-MAIN` | `M4-PREF`（图标风格预览） | 生成 / 填充一枚 SVG 图标。**名字取不到时回落 `spark`，不会抛错** |
+| `window.PWB_ICONS.refresh()` | `M4-MAIN` | `M4-PREF` | 图标风格从 `plain/tile` 切到 `abstract/readable` 时，重新填充顶栏、侧栏、图标选择器和预览里的 SVG 路径 |
 | `window.PWB_APP` | `M4-MAIN` 末尾暴露 | `M4-PREF` | `{ connect, scanFolders }`：设置面板里的「重新连接 / 同步文件夹」调它 |
 | `window.PWB_SKIN` | `M4-SKIN` 末尾暴露 | `M4-PREF` | `{ list(), apply(id), openCustom() }`：设置面板列皮肤、换皮肤、开自定义外观面板 |
 | `window.PWB_BRAND` | `M4-MAIN` 末尾暴露（品牌标初始化之后） | `M4-PREF` | `{ pick(), reset() }`：设置面板里的「上传头像 / Logo」与「恢复默认图标」调它 |
@@ -116,6 +120,7 @@ async function request(path, options)                   // 唯一的后端调用
 | `.drag-ghost` | 克隆出的幽灵卡，追加到 `document.body` | 跟手浮层 |
 | `.drag-source` | 被拖动的原卡 | 原位置半透明 |
 | `.dragging-active` | `document.body` | 全局拖拽态（如禁选） |
+| `.dragging-category` | `document.body` | 侧栏分类拖拽态；同样使用 `.drag-ghost` / `.drag-source`，但只作用于 `.category-link` |
 
 ### 3. 渲染契约（数据 → 界面）
 
@@ -131,6 +136,7 @@ async function request(path, options)                   // 唯一的后端调用
 
 > `#frequent` **不参与手动排序**（前端明确排除它，见上表 `.icon-grid` 约定）；只有分类网格可以拖。
 > 分类网格的顺序**只由拖动改写**：点击/打开条目只会更新 `openCount` 与 `lastOpenedAt`，不会改变它的位置。
+> 侧栏里的分类同样可以拖动调整相对位置。前端按拖后的 `.category-link` 顺序依次更新每个 `Category.order`，因此刷新、浏览器版与桌面版都会保持一致；「全部内容」「常用」「待补充」不属于分类，位置固定。
 
 - 排序：`sortItems()` —— **位置只由 `order` 决定**：有 `order` 的按 `order` 升序，没有 `order` 的（从没拖过序的分类）按后端返回的原始顺序跟在后面；缺 `order` 或 `order` 撞号时用原始下标兜底，保证结果稳定可复现。**排序键里不允许出现任何会随点击/时间变化的量**（历史上缺 `order` 时用 `score()` 兜底，导致点一下图标、它的分数涨上去就自己跳到第一位）。
 - 常用度：`score(item) = openCount * 12 + max(0, 30 - 距上次打开的天数)`。**只有 `#frequent` 用它排序，分类网格不用**——分类网格的位置只由拖动决定。
@@ -167,14 +173,15 @@ async function request(path, options)                   // 唯一的后端调用
 
 ### 5. 与样式的关系（`M4-CSS` + `M4-SKIN`）
 
-样式全部内联在 `<head>` 的 `<style>` 里，**所有颜色/圆角/模糊/阴影都走 CSS 变量**，由 `M4-SKIN` 在运行时注入。基础变量：`--ink` `--muted` `--faint` `--line` `--line-strong` `--paper` `--paper-solid` `--paper-hover` `--wash` `--brand` `--brandwash` `--brand-ink` `--brand-line` `--on-brand` `--soft` `--soft-ink` `--ok` `--ok-line` `--ok-bg` `--danger` `--scrim` `--blur` `--panel-border` `--panel-shadow` `--bar-bg` `--bar-border` `--bar-shadow` `--scroll-thumb` `--scroll-thumb-hover` `--scroll-track` `--radius*` `--sh-raised` `--sh-float`。`:root` 里是「经典云白」的兜底值；`--bar-*` 三个变量专门控制顶栏（玻璃皮肤下是带色调的磨砂条），`--scroll-*` 控制滚动条（`::-webkit-scrollbar` 细胶囊滑块 + `scrollbar-color` 兜底，Windows 默认那条浅灰滚动槽和玻璃皮肤不搭）。
+样式全部内联在 `<head>` 的 `<style>` 里，**所有颜色/圆角/模糊/阴影都走 CSS 变量**，由 `M4-SKIN` 在运行时注入。基础变量：`--ink` `--muted` `--faint` `--line` `--line-strong` `--paper` `--paper-solid` `--paper-hover` `--wash` `--brand` `--brandwash` `--brand-ink` `--brand-line` `--on-brand` `--soft` `--soft-ink` `--ok` `--ok-line` `--ok-bg` `--danger` `--scrim` `--blur` `--panel-border` `--panel-shadow` `--bar-bg` `--bar-border` `--bar-shadow` `--glass-sheen` `--glass-edge` `--glass-depth` `--glass-glow` `--glass-inner` `--scroll-thumb` `--scroll-thumb-hover` `--scroll-track` `--radius*` `--sh-raised` `--sh-float`。`:root` 里是「经典云白」的兜底值；`--bar-*` 三个变量专门控制顶栏（玻璃皮肤下是带色调的磨砂条），`--glass-*` 五个变量控制液态玻璃的表面高光、边缘折射、内部雾感与深度阴影，`--scroll-*` 控制滚动条（`::-webkit-scrollbar` 细胶囊滑块 + `scrollbar-color` 兜底，Windows 默认那条浅灰滚动槽和玻璃皮肤不搭）。
 
 另有三组变量是后补的，皮肤按需覆盖、不写就吃 `:root` 兜底：
 
 | 变量 | 管什么 |
 | --- | --- |
 | `--bar-btn-bg` `--bar-btn-ink` `--bar-btn-border` `--bar-btn-radius` `--bar-btn-size` | 顶栏图标按钮。**胶囊版**把外壳挪到 `.actions` 上（外壳颜色仍走 `--paper-solid` / `--panel-border`），内部按钮转透明 |
-| `--nav-icon` 相关：`--nav-tile-bg` `--nav-tile-ink` `--nav-tile-radius` | 「圆角方块」图标风格下垫的那块底色；`--nav-w` 是侧栏宽度（`body.nav-compact` 收到 68px） |
+| `--nav-icon` 相关：`--nav-tile-bg` `--nav-tile-ink` `--nav-tile-radius` | 「圆角方块 / 直观重绘」等图标风格下垫的那块底色；`--nav-w` 是侧栏宽度（`body.nav-compact` 收到 68px） |
+| `--glass-sheen` `--glass-edge` `--glass-depth` `--glass-glow` `--glass-inner` | 液态玻璃质感：表面高光、边缘亮线、底部深度、内侧折射与雾感。皮肤可以覆盖它们，组件规则不硬编码玻璃颜色 |
 | `--tip-bg` `--tip-ink` `--tip-border` | 悬停文字提示的浮层配色 |
 
 **主题不再是固定浅色**——皮肤可以是深色（暗夜玻璃）；组件规则里禁止硬编码色值，拖拽相关的三个类名同样走变量，任意皮肤下都要保持对比度。
@@ -250,11 +257,12 @@ async function request(path, options)                   // 唯一的后端调用
 | 侧栏 | `expanded`（默认）/ `compact` | `body.nav-compact` | 只留图标、宽度收到 68px；鼠标停上去浮出名称 |
 | 顶栏按钮文字 | `off`（默认）/ `on` | `body.bar-labels` | 默认只有图标，悬停浮出文字 |
 | 顶栏样式 | `circle`（默认）/ `capsule` | `body[data-bar-style]` | 各自独立圆形按钮 / 整组收进一枚胶囊 |
-| 图标风格 | `plain`（默认）/ `tile` | `body[data-icon-style]` | 极简线稿 / 圆角方块垫底 |
+| 侧边栏版式 | `card`（默认）/ `pill` / `rail` | `body[data-nav-style]` | 信息卡片 / 柔和胶囊 / 悬浮导轨；不影响数据驱动导航 |
+| 图标风格 | `plain`（默认）/ `tile` / `abstract` / `readable` | `body[data-icon-style]` | 极简线稿 / 圆角方块 / 抽象高级符号 / 直观重绘图标；后两者会刷新 SVG 本体 |
 
 契约要点：
 
-- 存在 `localStorage` 键 `pwb.prefs`。**组件规则里不写任何 JS 判断**——只认上面四个钩子，外观全在 `M4-CSS`。
+- 存在 `localStorage` 键 `pwb.prefs`。**组件规则里不写任何 JS 判断**——只认上面五个钩子，外观全在 `M4-CSS`。
 - 悬停提示只在「文字已经被收起」的地方出现（紧凑侧栏、只显示图标的顶栏），展开状态下不弹重复信息；浮层是全局单例 `.hover-tip`，坐标走 CSSOM。
 - 设置面板 `#settingsModal`：皮肤网格取自 `window.PWB_SKIN.list()`，改任何一项立即生效并落盘，没有「保存」按钮；面板里的「同步文件夹 / 重新连接」走 `window.PWB_APP`。
 - 入口有三处：顶栏 ⚙ 按钮、侧栏底部 ⚙ 按钮（`[data-action="settings"]`）、皮肤菜单仍保留（快捷换皮肤）。侧栏底部的折叠按钮（`[data-action="toggle-nav"]`）直接切 `expanded` / `compact`。
@@ -282,7 +290,7 @@ async function request(path, options)                   // 唯一的后端调用
 - ❌ **不要绕过 `request()` 直接用 `fetch` 或 `invoke`**，那会破坏双通道兼容。
 - ❌ **不要在 `M4-DRAG` 里读取业务数据或调用后端接口**。它只处理 DOM 与调用 `persistOrder()`。
 - ❌ **不要改 `.icon-card` / `data-id` / `.icon-grid#frequent` 这三个约定**而不改另一个脚本块。
-- ❌ **不要为了「图标风格 / 顶栏样式 / 侧栏收起文字」在 JS 里逐个改样式**。只往 `<body>` 写 `data-icon-style` / `data-bar-style` / `nav-compact` / `bar-labels` 这四个钩子，外观交给 `M4-CSS`。
+- ❌ **不要为了「图标风格 / 侧栏版式 / 顶栏样式 / 侧栏收起文字」在 JS 里逐个改样式**。只往 `<body>` 写 `data-icon-style` / `data-nav-style` / `data-bar-style` / `nav-compact` / `bar-labels` 这五个钩子，外观交给 `M4-CSS`；图标本体需要切换时调用 `window.PWB_ICONS.refresh()` 统一刷新。
 - ❌ **不要给 `<svg>` 漏掉 CSS 尺寸**。SVG 不加约束时按 `300×150` 布局，会把侧栏/顶栏整个撑坏；新增图标容器时照 5.4 节那份清单补一条规则。
 - ❌ **不要在带 `data-tip` 的元素上再写 `title`**，否则原生提示和浮层会一起冒出来。
 - ❌ **不要把分类 `symbol` 当纯字符用**。新写数据要传图标名（见 5.4），前端虽然兼容旧的字符符号，但那是过渡兼容而不是目标形态。
@@ -309,3 +317,6 @@ async function request(path, options)                   // 唯一的后端调用
 | 2026-09-21 | **品牌标改版 + 支持自定义头像**：把顶栏/侧栏的「工」字换成「个」字几何标（SVG），新增 `brandFile` 与 `.brand-mark` 交互。默认点击品牌标可上传自己的照片 / Logo，图片经 `shrinkImage()` 压到 256px 后存 `localStorage`（键 `pwb.brand`），两处标记同步切换、刷新后自动恢复；设置面板新增「上传头像 / Logo」与「恢复默认图标」按钮。新增 `window.PWB_BRAND` 跨块契约与 `--brand-glyph` 变量，CSS 适配 46px / 38px / 36px 三处尺寸；文档更新 5.1 / 5.6 节与 DOM 契约。 |
 | 2026-09-21 | **删除顶部状态条**（`<main>` 里的 `<div id="status" class="status">`）：连接结果、同步结果、品牌图报错原先都写在这条上，删除后统一改由新增的 `setStatus(text,bad)` 写进设置面板的 `#settingsStatus`（类名保持 `tip` / `tip bad`，不覆盖成原来那套 `status ok` / `status bad`）。注意：`connect()`、`scanFolders()`、`brandNotice()` 里原有 6 处 `$('status')` 未做空值保护，**只删元素必然出问题**——`connect()` 会在赋值处抛 `TypeError`，被自己的 `catch` 接住后又在 `catch` 里抛第二次，其后的 `loadItems()` 再也不执行，首屏直接空白；所以元素与这三处写入必须同一次改完。DOM 契约表里的「状态条 `status`」一行随之删除，「数据区 `settingsStatus`」成为唯一的状态文案出口。`.status`/`.status.ok`/`.status.bad` 三条 CSS 规则与 `paintStatus()` 已成死代码，本次保留未动。 |
 | 2026-09-21 | **修复深色皮肤下原生下拉「空白、选不中」**：`select` 的 `option` 未设底色时其 `background` 是 `rgba(0,0,0,0)`，弹出列表回退到系统浅色底（白），而文字色继承皮肤的 `--ink`——暗夜玻璃（`#e8ebf8`）/ 石墨暮色（`#eef3f9`）下即为白底白字，「用哪个浏览器打开」等下拉看着是空的、任何一项都点不着；浅色皮肤文字是深色所以一直没暴露。`M4-CSS` 新增 `select option{background:var(--paper-solid);color:var(--ink)}`，一条规则覆盖全部原生下拉（网址的浏览器选择、归类弹窗的分类选择、开始菜单的分组筛选）。通用约定补进第 5 节。 |
+| 2026-09-21 | **侧栏分类支持拖动排序**：`renderNav()` 给数据驱动分类加 `.category-link[data-category-key]`，`M4-DRAG` 用 Pointer Events 提供跟手幽灵与插入动画；总览、常用、待补充不带该类，保持固定。结束后 `persistCategoryOrder()` 串行调用既有的 `/categories/update` 更新 `Category.order`，避免并发写索引；补齐 IPC 映射清单中的分类更新/删除与浏览器探测条目。 |
+| 2026-09-21 | **侧边栏与图标视觉扩展**：`M4-PREF` 新增 `navStyle` 偏好与 `#navStyleSeg`，在信息卡片（默认）、柔和胶囊、悬浮导轨三种侧边栏构图间切换，可与只显示图标的紧凑态叠加；`iconStyle` 从两种扩为四种，新增柔光胶囊与立体圆形。两个偏好均只通过 `body[data-nav-style]` / `body[data-icon-style]` 驱动 CSS，继续不影响数据、拖拽、DOM 导航契约。 |
+| 2026-09-21 | **液态玻璃与图标本体升级**：玻璃卡片从单层半透明改为变量驱动的表面高光、边缘折射、内部雾感和深度阴影（新增 `--glass-*` 变量）；图标风格中的 `soft/solid` 迁移为 `abstract/readable`，分别提供抽象高级符号与直观重绘图标两套 SVG 路径，切换时由 `window.PWB_ICONS.refresh()` 重新填充已有 DOM。 |

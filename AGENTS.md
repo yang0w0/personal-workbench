@@ -40,7 +40,7 @@
 1. **定位模块**：查 [docs/INTERFACES.md](docs/INTERFACES.md) 的[任务路由表](docs/INTERFACES.md#4-任务路由表)，确定「本次任务属于哪个模块 / 该读哪份文档 / 该改哪些文件」。
 2. **读那一份接口文档**（不是模块的代码）。
 3. **改本模块文件**；需要跨模块时回到规则 4。
-4. **跑验证**：`npm run check`，然后按[改完怎么生效对照表](docs/interfaces/build-and-verify.md#3-改完怎么生效对照表)确认在哪一端生效。
+4. **跑验证**：`npm run check`，然后按[改完怎么生效对照表](docs/interfaces/build-and-verify.md#3-改完怎么生效对照表)确认在哪一端生效。凡是改了 `app/index.html`，如果用户要的是桌面端效果，不能只停在 HTML；必须跑 `build-client.cmd`，把改动重新编译进根目录的 `个人工作台.exe`，并确认 exe 已更新后才算完成。
 5. **同步文档**：接口/字段/路径有变动就更新接口文档（含「变更记录」）。
 
 ---
@@ -62,7 +62,7 @@
 
 ## 本机环境注意事项（Windows）
 
-- **改了 `app/index.html`，桌面版不会自动生效**——前端被内嵌进 `个人工作台.exe`，必须重新编译（双击 `build-client.cmd`，增量约 1.5 分钟）。编译前确认 exe 没在运行。
+- **改了 `app/index.html`，桌面版不会自动生效**——前端被内嵌进 `个人工作台.exe`，必须重新编译（双击 `build-client.cmd`，增量约 1.5 分钟）。如果本次交付面向桌面版，不能只改 HTML；必须确认根目录的 `个人工作台.exe` 已由本次构建更新。编译前确认 exe 没在运行。
 - **改了 `data/脚本/` 下的自写脚本不需要重新编译**（与上一条别搞混）。
 - Bash 工具如果报 `dirname: command not found`，在命令前加 `PATH="/usr/bin:/bin:$PATH"; export PATH;` 即可恢复。
 - 命令行里出现中文路径容易整体失败；把逻辑写进临时脚本、用相对路径调用、结果 `Out-File` 到日志再读，更稳。

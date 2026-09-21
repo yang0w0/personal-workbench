@@ -57,10 +57,7 @@ const DEFAULT_CATEGORIES = [
   { key: 'script', label: '脚本', folder: '脚本', kind: KIND_SCRIPT, symbol: '▣', note: '点击运行 · 可拖动排序', order: 0, builtin: true },
   { key: 'link', label: '网址', folder: '网址', kind: KIND_LINK, symbol: '↗', note: '点击打开 · 可拖动排序', order: 1, builtin: true },
   { key: 'app', label: '应用', folder: '应用', kind: KIND_APP, symbol: '◈', note: '点击启动 · 保留原快捷方式', order: 2, builtin: true },
-  { key: 'file', label: '文档', folder: '文档', kind: KIND_FILE, symbol: '▤', note: '点击用默认程序打开', order: 3, builtin: true },
-  // 文件夹：kind 复用 file（KINDS 只有四种），条目只存绝对路径、不建 data/ 下的实体文件，
-  // 点一下由 startDetached() 拉起资源管理器。编辑器复用「文件或文件夹路径」那一组字段。
-  { key: 'folder', label: '文件夹', folder: '文件夹', kind: KIND_FILE, symbol: '▦', note: '点击跳转到该文件夹', order: 4, builtin: true },
+  { key: 'file', label: '文件', folder: '文档', kind: KIND_FILE, symbol: '▤', note: '点击打开文件或文件夹', order: 3, builtin: true },
   { key: 'inbox', label: '待整理', folder: '待整理', kind: 'inbox', symbol: '!', note: '补充分类后变成快捷图标', order: 90, builtin: true, inbox: true }
 ];
 
@@ -131,7 +128,20 @@ function readCatalog() {
   // 首次升级：老目录没有 categories，补上默认分类；用户已有的自定义文件夹也一并收录。
   const source = Array.isArray(parsed.categories) && parsed.categories.length ? parsed.categories : DEFAULT_CATEGORIES;
   catalog.categories = source.map((entry, index) => normalizeCategory(entry, index)).filter(Boolean);
+  // 旧版把文件与文件夹拆成两个内置分类；现在统一为 file。保留原来的 data/文档
+  // 存储目录，并将原先仅存绝对路径的 folder 条目直接归入 file。
+  catalog.categories = catalog.categories.filter((entry) => entry.key !== 'folder');
+  const fileCategory = catalog.categories.find((entry) => entry.key === 'file');
+  if (fileCategory) {
+    fileCategory.label = '文件';
+    fileCategory.note = '点击打开文件或文件夹';
+  }
+  for (const item of catalog.items) {
+    if (item.category === 'folder') item.category = 'file';
+  }
   for (const name of listDataFolders()) {
+    // 这是旧版内置「文件夹」分类遗留的空目录；不再把它重新收编成新分类。
+    if (name === '文件夹') continue;
     if (catalog.categories.some((entry) => entry.folder === name)) continue;
     const fallback = DEFAULT_CATEGORIES.find((entry) => entry.folder === name);
     if (fallback) catalog.categories.push(normalizeCategory(fallback, catalog.categories.length));

@@ -119,7 +119,7 @@
 | `script` | 用 `cmd /c start` 打开 `data/脚本|文档/...` 里的真实文件 |
 | `link` | 必须是 `http(s)://`，交给系统默认浏览器 |
 | `app` | 优先用复制进 `data/应用/` 的 `.lnk`，否则回落到 `target` |
-| `file` | `target` 或 `sourcePath` 解析出的绝对路径。**目录同样适用**——内置的「文件夹」分类（`key: folder`，`kind` 仍是 `file`，见 [data-catalog.md](data-catalog.md)）就是靠这一条跳转到本地任意目录，由资源管理器打开 |
+| `file` | `target` 或 `sourcePath` 解析出的绝对路径。文件和目录都适用同一个内置「文件」分类（`key: file`）；目录交给资源管理器打开 |
 
 成功后 `openCount += 1`、`lastOpenedAt = now`。「常用」网格按 `openCount * 12 + 30 天内衰减分` 排序。
 
@@ -149,3 +149,4 @@
 | 2026-09-20 | 首次编写。冻结 17 条路由（含 `OPTIONS`）、8 MiB 请求上限、错误码约定、按 `kind` 分流的请求体。标注 `metadata`/`hide` 两个接口当前无调用方。 |
 | 2026-09-20 | 同步前端接入后的状态：`/api/items/metadata`（待补充归类，含 `newCategory` 内联新建）与 `/api/items/hide`（右键「忽略」）都已有调用方；改正 `reorder` 描述——它只更新传入 `ids` 里的条目，不再整段覆盖 `order`。 |
 | 2026-09-21 | 新增内置分类「文件夹」（`key: folder`，`kind` 仍是 `file`，`KINDS` 未变、`/api/items` 的 `kinds` 仍为四个值）；`readCatalog()` 增加内置分类补齐，于是 `categories` 会对已有 `catalog.json` 多出这一项。`/api/items/open` 的 `file` 分支明确支持目录（交给资源管理器打开）。 |
+| 2026-09-21 | 将内置「文档」与「文件夹」合并为「文件」（`key: file`）。`readCatalog()` 会将旧 `folder` 条目迁移到 `file`，删除旧分类，并忽略遗留的 `data/文件夹/` 空目录；`file` 打开逻辑不变，继续同时支持文件和目录。 |

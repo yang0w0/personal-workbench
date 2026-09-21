@@ -178,9 +178,7 @@ fn default_categories() -> Vec<Category> {
         cat("script", "脚本", "脚本", "script", "▣", "点击运行 · 可拖动排序", 0, true, false),
         cat("link", "网址", "网址", "link", "↗", "点击打开 · 可拖动排序", 1, true, false),
         cat("app", "应用", "应用", "app", "◈", "点击启动 · 保留原快捷方式", 2, true, false),
-        cat("file", "文档", "文档", "file", "▤", "点击用默认程序打开", 3, true, false),
-        // 文件夹：kind 复用 file，条目只存绝对路径，点一下由 start_detached() 拉起资源管理器。
-        cat("folder", "文件夹", "文件夹", "file", "▦", "点击跳转到该文件夹", 4, true, false),
+        cat("file", "文件", "文档", "file", "▤", "点击打开文件或文件夹", 3, true, false),
         cat("inbox", "待整理", "待整理", "inbox", "!", "补充分类后变成快捷图标", 90, true, true),
     ]
 }
@@ -478,8 +476,25 @@ fn read_catalog() -> Catalog {
         index += 1;
     }
 
+    // 旧版把文件与文件夹拆成两个内置分类；现在统一为 file。保留原来的 data/文档
+    // 存储目录，并将原先仅存绝对路径的 folder 条目直接归入 file。
+    catalog.categories.retain(|c| c.key != "folder");
+    if let Some(file_category) = catalog.categories.iter_mut().find(|c| c.key == "file") {
+        file_category.label = "文件".to_string();
+        file_category.note = "点击打开文件或文件夹".to_string();
+    }
+    for item in &mut catalog.items {
+        if item.category == "folder" {
+            item.category = "file".to_string();
+        }
+    }
+
     // 兜底：data/ 下已存在但没注册的文件夹收编成 kind:file 的自定义分类。
     for name in list_data_folders() {
+        // 这是旧版内置「文件夹」分类遗留的空目录；不再把它重新收编成新分类。
+        if name == "文件夹" {
+            continue;
+        }
         if catalog.categories.iter().any(|c| c.folder == name) {
             continue;
         }

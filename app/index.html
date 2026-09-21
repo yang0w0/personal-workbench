@@ -55,6 +55,9 @@
   --bar-btn-radius:99px; --bar-btn-size:38px;
   /* 侧栏图标容器：由 M4-PREF 的「图标风格」开关决定是否垫底色（圆角方块） */
   --nav-tile-bg:var(--soft); --nav-tile-ink:var(--soft-ink); --nav-tile-radius:11px;
+  --nav-card-bg:var(--paper); --nav-card-border:var(--panel-border); --nav-card-shadow:var(--panel-shadow);
+  --glass-sheen:linear-gradient(145deg,rgba(255,255,255,.46),rgba(255,255,255,.10) 42%,rgba(255,255,255,.18));
+  --glass-edge:rgba(255,255,255,.62); --glass-depth:rgba(23,32,51,.10); --glass-glow:rgba(255,255,255,.42); --glass-inner:rgba(255,255,255,.08);
   --nav-w:200px;
   /* 悬停文字提示（顶栏/侧栏紧凑态下显示） */
   --tip-bg:var(--paper-solid); --tip-ink:var(--ink); --tip-border:var(--panel-border);
@@ -100,6 +103,17 @@ body[data-skin="sakura-mist"]::before{background:
   radial-gradient(44rem 30rem at 6% 12%,rgba(255,188,210,.55),transparent 70%),
   radial-gradient(40rem 32rem at 96% 18%,rgba(236,170,205,.42),transparent 72%),
   radial-gradient(56rem 36rem at 50% 110%,rgba(255,214,228,.62),transparent 74%)}
+/* Nocturne：用两层柔焦的拱廊、远山和月晕把参考图的「玫瑰圣殿」氛围放进
+   工作台本身，不依赖外部壁纸；内容仍优先于装饰，窄屏时自动淡出两侧拱柱。 */
+body[data-skin="nocturne-rose"]::before,body[data-skin="nocturne-rose"]::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none}
+body[data-skin="nocturne-rose"]::before{background:
+  radial-gradient(42rem 25rem at 50% 28%,rgba(255,247,248,.78) 0 10%,transparent 43%),
+  radial-gradient(35rem 23rem at 50% 46%,rgba(189,104,139,.28),transparent 70%),
+  linear-gradient(145deg,transparent 0 18%,rgba(255,237,243,.40) 18.2% 22%,transparent 22.3% 77.7%,rgba(255,237,243,.40) 78% 81.8%,transparent 82%),
+  linear-gradient(180deg,#f5cbd8 0%,#efb8cb 42%,#f7dce3 100%)}
+body[data-skin="nocturne-rose"]::after{inset:84px 6vw 3vh;border-radius:46px 46px 32px 32px;opacity:.62;background:
+  linear-gradient(90deg,rgba(255,255,255,.50) 0 5%,rgba(255,255,255,.08) 5% 8%,transparent 8% 92%,rgba(255,255,255,.08) 92% 95%,rgba(255,255,255,.50) 95% 100%),
+  radial-gradient(70% 65% at 50% 36%,rgba(255,255,255,.12),transparent 70%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.42)}
 h1{margin:0;font-size:19px;font-weight:800;letter-spacing:.4px}
 h2{margin:0;font-size:15px;font-weight:700}
 code{font-family:Consolas,"Courier New",monospace;font-size:.92em;padding:1px 5px;border-radius:5px;background:var(--soft);color:var(--soft-ink)}
@@ -170,7 +184,11 @@ main{max-width:1180px;padding:0 24px;margin:22px auto}
 .status.ok{color:var(--ok);border-color:var(--ok-line);background:var(--ok-bg)}
 .status.bad{color:var(--danger);border-color:var(--danger)}
 .workspace{display:grid;grid-template-columns:var(--nav-w) minmax(0,1fr);gap:20px;margin-top:18px;align-items:start}
-.sidebar,section{background:var(--paper);border:1px solid var(--panel-border);border-radius:var(--radius);box-shadow:var(--panel-shadow);backdrop-filter:blur(var(--blur)) saturate(1.4);-webkit-backdrop-filter:blur(var(--blur)) saturate(1.4)}
+.sidebar,section{position:relative;overflow:hidden;background:linear-gradient(145deg,var(--paper),var(--paper-hover));border:1px solid var(--panel-border);border-radius:var(--radius);box-shadow:var(--panel-shadow),inset 0 1px 0 var(--glass-edge),inset 0 -22px 48px var(--glass-depth);backdrop-filter:blur(var(--blur)) saturate(1.72) contrast(1.04);-webkit-backdrop-filter:blur(var(--blur)) saturate(1.72) contrast(1.04)}
+.sidebar::before,section::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;background:var(--glass-sheen);opacity:.86}
+.sidebar::after,section::after{content:"";position:absolute;inset:1px;border-radius:inherit;z-index:0;pointer-events:none;box-shadow:inset 0 0 0 1px var(--glass-glow),inset 14px 16px 34px var(--glass-inner)}
+.sidebar>*,
+section>*{position:relative;z-index:1}
 .sidebar{height:max-content;padding:14px 10px;position:sticky;top:88px;display:flex;flex-direction:column;gap:3px}
 /* 侧栏顶部品牌标（保留侧栏 ID 契约，样式跟随皮肤变量） */
 .sidebar .brand-mark{margin:0 auto 10px}
@@ -179,6 +197,14 @@ main{max-width:1180px;padding:0 24px;margin:22px auto}
 .nav-link{display:flex;gap:11px;align-items:center;width:100%;padding:8px 10px;border-radius:12px;background:transparent;color:var(--ink);text-align:left;font-size:13.5px;font-weight:500;transition:background .15s ease,color .15s ease}
 .nav-link:hover{background:var(--brandwash);color:var(--brand-ink);filter:none}
 .nav-link.active{background:var(--brand);color:var(--on-brand);font-weight:600}
+/* 分类导航支持 Pointer Events 排序；总览、常用和待补充保持固定位置。 */
+.nav-link.category-link{cursor:grab;touch-action:none}
+/* 导航图标本身已提供视觉标识，悬停时不再给任何未选中项加品牌色外框。 */
+.nav-link:not(.active):hover{background:transparent;color:var(--ink)}
+.nav-link.category-link.drag-source{opacity:.35;border:1px dashed var(--brand-line);background:var(--brandwash)}
+body.dragging-category{cursor:grabbing}
+body.dragging-category .nav-link.category-link:hover{background:var(--paper-solid);color:var(--ink)}
+body.dragging-category .nav-link.category-link.drag-ghost{position:fixed;z-index:60;margin:0;pointer-events:none;background:var(--paper-solid);color:var(--ink);border:1px solid var(--brand-line);box-shadow:var(--sh-float);opacity:.98;transform:scale(1.02)}
 /* 图标容器：plain 风格下无底色，tile 风格下垫圆角方块（见下方 data-icon-style 规则）。 */
 .nav-icon{display:grid;place-items:center;width:30px;height:30px;flex:none;border-radius:var(--nav-tile-radius);background:transparent;color:inherit}
 .nav-icon svg{width:19px;height:19px}
@@ -191,14 +217,59 @@ main{max-width:1180px;padding:0 24px;margin:22px auto}
 .nav-add:hover{color:var(--brand-ink);border-color:var(--brand-line);background:var(--brandwash)}
 
 /* 图标风格（M4-PREF 的「图标风格」开关，落在 body[data-icon-style]）：
-   - plain（默认）：极简线稿，图标不垫底，选中态靠整行底色区分
-   - tile       ：图标垫一个圆角方块，选中态由图标块自己染色 */
+   - plain / tile 复用基础图标，本体简洁
+   - abstract / readable 会切换 SVG 路径本体，不只是改外框 */
 body[data-icon-style="tile"] .nav-icon{background:var(--nav-tile-bg);color:var(--nav-tile-ink)}
 body[data-icon-style="tile"] .nav-link:hover .nav-icon{background:var(--brandwash);color:var(--brand-ink)}
 body[data-icon-style="tile"] .nav-link.active{background:transparent;color:var(--ink)}
 body[data-icon-style="tile"] .nav-link.active .nav-icon{background:var(--brand);color:var(--on-brand)}
 body[data-icon-style="tile"] .nav-link.active .nav-text{font-weight:700;color:var(--ink)}
 body[data-icon-style="tile"] .nav-link.active .nav-count{background:var(--brandwash);color:var(--brand-ink)}
+
+/* 侧边栏三种版式：保留同一套 data-driven 导航，仅由 body[data-nav-style] 改构图。
+   - card：默认的信息卡片，适合分类较多的工作台
+   - pill：参考图的柔和胶囊分组，适合壁纸 / 玻璃皮肤
+   - rail：轻量导轨，把内容区留给高密度工作
+   紧凑态仍可叠加在任意版式上，只负责收起文字。 */
+body[data-nav-style="pill"] .sidebar{padding:12px 8px;border-radius:28px;background:linear-gradient(180deg,var(--nav-card-bg),var(--paper-hover));border-color:var(--nav-card-border);box-shadow:var(--nav-card-shadow),inset 0 1px 0 var(--glass-edge),inset 0 -24px 44px var(--glass-depth)}
+body[data-nav-style="pill"] .sidebar .brand-mark{margin-bottom:13px;border-radius:50%}
+body[data-nav-style="pill"] .nav-link{margin:1px 2px;width:calc(100% - 4px);border-radius:99px;padding:9px 11px}
+body[data-nav-style="pill"] .nav-add{margin:4px 2px;width:calc(100% - 4px);border-radius:99px}
+body[data-nav-style="pill"] .nav-sep{margin:10px 12px}
+body[data-nav-style="rail"] .workspace{gap:14px}
+body[data-nav-style="rail"] .sidebar{padding:10px 7px;background:transparent;border-color:transparent;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+body[data-nav-style="rail"] .sidebar .brand-mark{margin-bottom:14px;border-radius:14px;box-shadow:none}
+body[data-nav-style="rail"] .nav{gap:6px}
+body[data-nav-style="rail"] .nav-link{border-radius:14px;padding:9px 10px;border:1px solid transparent}
+body[data-nav-style="rail"] .nav-link.active{background:var(--paper-solid);color:var(--brand-ink);border-color:var(--brand-line);box-shadow:var(--panel-shadow)}
+body[data-nav-style="rail"] .nav-link.active .nav-count{background:var(--brandwash);color:var(--brand-ink)}
+body[data-nav-style="rail"] .nav-add{border-radius:14px;background:var(--paper);box-shadow:var(--panel-shadow)}
+body[data-icon-style="abstract"] .nav-icon{color:var(--brand-ink)}
+body[data-icon-style="abstract"] .nav-link.active{background:transparent;color:var(--ink)}
+body[data-icon-style="abstract"] .nav-link.active .nav-icon{background:var(--brand);color:var(--on-brand);border-radius:50%;box-shadow:0 9px 20px var(--brandwash),inset 0 1px 0 var(--glass-edge)}
+body[data-icon-style="abstract"] .nav-link.active .nav-text{font-weight:700}
+body[data-icon-style="abstract"] .nav-link.active .nav-count{background:var(--brandwash);color:var(--brand-ink)}
+body[data-icon-style="readable"] .nav-icon{background:var(--brandwash);color:var(--brand-ink);border-radius:12px;box-shadow:inset 0 0 0 1px var(--brand-line),inset 0 1px 0 var(--glass-edge)}
+body[data-icon-style="readable"] .nav-link:hover .nav-icon{background:var(--soft);color:var(--soft-ink)}
+body[data-icon-style="readable"] .nav-link.active .nav-icon{background:var(--on-brand);color:var(--brand-ink);box-shadow:inset 0 0 0 1px var(--glass-edge)}
+body[data-icon-style="readable"] .nav-link.active .nav-count{background:var(--on-brand);color:var(--brand)}
+
+/* Nocturne 专属构图：顶栏像悬浮的月牙，内容卡片像半透明纸笺；只借用现有 DOM，
+   所有文字、数据和交互都仍走通用组件。 */
+body[data-skin="nocturne-rose"] header{width:min(720px,calc(100% - 48px));min-height:68px;margin:13px auto 0;padding:0 22px;border:1px solid rgba(255,255,255,.82);border-radius:0 0 34px 34px;box-shadow:0 14px 32px rgba(127,59,88,.16),inset 0 -1px 0 rgba(186,92,126,.10)}
+body[data-skin="nocturne-rose"] main{max-width:1280px;padding:0 34px;margin-top:4px}
+body[data-skin="nocturne-rose"] .workspace{gap:24px;margin-top:20px}
+body[data-skin="nocturne-rose"] .sidebar{top:94px;padding:12px 9px;border-radius:30px;box-shadow:0 18px 40px rgba(144,73,106,.16)}
+body[data-skin="nocturne-rose"] section{border-radius:28px;box-shadow:0 18px 42px rgba(144,73,106,.14)}
+body[data-skin="nocturne-rose"] .section-head{padding-bottom:11px;border-bottom:1px solid var(--line)}
+body[data-skin="nocturne-rose"] .icon-grid{gap:9px}
+body[data-skin="nocturne-rose"] .icon-card{min-height:104px;border-radius:20px}
+body[data-skin="nocturne-rose"] .icon-card:hover,.icon-card:focus{box-shadow:0 10px 24px rgba(172,83,119,.14)}
+body[data-skin="nocturne-rose"] .item-icon{width:46px;height:46px;border-radius:16px;box-shadow:inset 0 1px 0 rgba(255,255,255,.76)}
+body[data-skin="nocturne-rose"] .brand-mark{border-radius:50%;box-shadow:0 9px 22px rgba(192,75,116,.28),inset 0 1px 0 rgba(255,255,255,.38)}
+body[data-skin="nocturne-rose"] .nav-link{border-radius:18px}
+body[data-skin="nocturne-rose"] .nav-add{border-radius:18px}
+body[data-skin="nocturne-rose"] .bar-btn{box-shadow:0 4px 10px rgba(171,92,119,.08)}
 
 /* 紧凑侧栏（M4-PREF 的「侧栏」开关）：只留图标，宽度收到 68px。
    窄屏（<=760px）本来就是横排布局，不套用紧凑规则。 */
@@ -431,6 +502,9 @@ body.dragging-active .icon-card.drag-ghost{position:fixed;z-index:60;margin:0;po
   .pick-body{grid-template-columns:1fr}
   .pick-detail{border-top:1px solid var(--line);max-height:30vh}
   .pick-list{max-height:34vh;border-right:0}
+  body[data-skin="nocturne-rose"] header{width:calc(100% - 28px);margin:10px auto 0;border-radius:0 0 24px 24px}
+  body[data-skin="nocturne-rose"] main{padding:0 14px}
+  body[data-skin="nocturne-rose"]::after{inset:70px 8px 8px;border-radius:28px}
 }
 </style></head><body>
 <header><div class="brand" data-tauri-drag-region><span class="brand-mark" role="button" tabindex="0" title="点击更换头像 / Logo" aria-label="更换头像或 Logo"></span><h1 data-tauri-drag-region>个人工作台</h1></div><div class="drag-space" data-tauri-drag-region></div><div class="actions" id="barActions"><div class="skin-wrap"><button class="bar-btn icon-only" id="skinToggle" data-icon="palette" data-tip="外观皮肤" aria-haspopup="true"><span class="bar-ic"></span><span class="bar-label">皮肤</span></button><div class="skin-menu" id="skinMenu" hidden></div></div><button class="bar-btn icon-only" id="connect" data-icon="refresh" data-tip="重新连接"><span class="bar-ic"></span><span class="bar-label">重新连接</span></button><button class="bar-btn icon-only" id="scan" data-icon="sync" data-tip="同步文件夹"><span class="bar-ic"></span><span class="bar-label">同步文件夹</span></button><button class="bar-btn icon-only primary" id="openAdd" data-icon="plus" data-tip="新增内容"><span class="bar-ic"></span><span class="bar-label">新增</span></button><button class="bar-btn icon-only" id="openSettings" data-icon="sliders" data-tip="设置"><span class="bar-ic"></span><span class="bar-label">设置</span></button></div><div class="win-buttons"><button type="button" class="win-btn" id="winMin" title="最小化" aria-label="最小化" data-icon="min"></button><button type="button" class="win-btn" id="winMax" title="最大化 / 还原" aria-label="最大化或还原" data-icon="max"></button><button type="button" class="win-btn close" id="winClose" title="关闭" aria-label="关闭窗口" data-icon="close"></button></div></header>
@@ -559,6 +633,11 @@ body.dragging-active .icon-card.drag-ghost{position:fixed;z-index:60;margin:0;po
     </section>
     <section class="set-block">
       <h3>侧边栏</h3>
+      <div class="segmented" id="navStyleSeg">
+        <button type="button" data-navstyle="card">信息卡片</button>
+        <button type="button" data-navstyle="pill">柔和胶囊</button>
+        <button type="button" data-navstyle="rail">悬浮导轨</button>
+      </div>
       <div class="segmented" id="navModeSeg">
         <button type="button" data-nav="expanded">显示图标 + 文字</button>
         <button type="button" data-nav="compact">只显示图标</button>
@@ -585,6 +664,8 @@ body.dragging-active .icon-card.drag-ghost{position:fixed;z-index:60;margin:0;po
       <div class="segmented" id="iconStyleSeg">
         <button type="button" data-iconstyle="plain">极简线稿</button>
         <button type="button" data-iconstyle="tile">圆角方块</button>
+        <button type="button" data-iconstyle="abstract">抽象符号</button>
+        <button type="button" data-iconstyle="readable">直观重绘</button>
       </div>
       <div class="icon-demo" id="iconDemo"></div>
     </section>
@@ -682,10 +763,51 @@ const ICONS={
 };
 const ICON_NAMES=Object.keys(ICONS).filter(name=>name!=='spark');
 const hasIcon=name=>typeof name==='string'&&Object.prototype.hasOwnProperty.call(ICONS,name);
+const ABSTRACT_ICONS={
+  folder:'<path d="M4.2 15.8c3.4-3.4 7.8-5.1 13.2-5.1"/><path d="M5.2 18.8h13.6c1 0 1.7-.8 1.5-1.8l-1.3-7.6c-.2-.9-.9-1.5-1.8-1.5h-6.1L9.3 5.7H5.7c-1 0-1.8.8-1.8 1.8v9.5c0 1 .6 1.8 1.3 1.8z"/>',
+  grid:'<path d="M6.5 4.2a2.3 2.3 0 1 1 0 4.6 2.3 2.3 0 0 1 0-4.6zM17.5 4.2a2.3 2.3 0 1 1 0 4.6 2.3 2.3 0 0 1 0-4.6zM6.5 15.2a2.3 2.3 0 1 1 0 4.6 2.3 2.3 0 0 1 0-4.6zM17.5 15.2a2.3 2.3 0 1 1 0 4.6 2.3 2.3 0 0 1 0-4.6z"/><path d="M8.6 6.5h6.8M6.5 8.6v6.8M17.5 8.6v6.8M8.6 17.5h6.8"/>',
+  star:'<path d="M12 3.2l1.9 6.1 6.1 1.9-6.1 1.9-1.9 6.1-1.9-6.1L4 11.2l6.1-1.9z"/><path d="M18 4.4v3.2M16.4 6h3.2"/>',
+  inbox:'<path d="M4.5 13.1c2.4-1.1 4.4-.8 5.8.9 1 1.2 2.4 1.2 3.4 0 1.4-1.7 3.4-2 5.8-.9"/><path d="M5.8 5.2h12.4l2.3 8.2v3.8c0 1.4-1.1 2.5-2.5 2.5H6c-1.4 0-2.5-1.1-2.5-2.5v-3.8z"/>',
+  terminal:'<path d="M4 7.2c3.6-2.2 6.8-2.2 9.7 0 2 1.5 4.1 1.6 6.3.2"/><path d="M5.6 11l2.3 1.9-2.3 1.9"/><path d="M11 15.6h6.6"/><rect x="3.3" y="4.7" width="17.4" height="14.6" rx="5"/>',
+  globe:'<circle cx="12" cy="12" r="8.2"/><path d="M4.6 14.8c4.8-3.8 9.8-4.2 14.9-1.2"/><path d="M12 3.8c1.7 2.3 2.6 5 2.6 8.2s-.9 5.9-2.6 8.2"/><path d="M12 3.8c-1.7 2.3-2.6 5-2.6 8.2s.9 5.9 2.6 8.2"/>',
+  app:'<path d="M6.5 4.5h11A2.5 2.5 0 0 1 20 7v10a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17V7a2.5 2.5 0 0 1 2.5-2.5z"/><path d="M8 9.2c1.8-1.3 3.2-1.3 4.2 0s2.4 1.3 4.2 0"/><path d="M8 14.8h8"/>',
+  file:'<path d="M7 4.2h7l4 4v10.3c0 .9-.7 1.7-1.7 1.7H7.7c-1 0-1.7-.8-1.7-1.7V5.9c0-.9.7-1.7 1.7-1.7z"/><path d="M14 4.2v4h4"/><path d="M9 13.2c1.9-1.4 4.1-1.4 6 0"/>',
+  lock:'<path d="M7.5 10.4V8a4.5 4.5 0 0 1 9 0v2.4"/><rect x="4.5" y="10.4" width="15" height="9.6" rx="4.2"/><path d="M12 14.1l1.3 1.3-1.3 1.3-1.3-1.3z"/>',
+  clock:'<circle cx="12" cy="12" r="8.3"/><path d="M12 7.2v5l3.6 2.1"/><path d="M6.7 6.7c3.5 1.2 7.1 1.2 10.6 0"/>',
+  archive:'<path d="M4.2 7.5h15.6"/><path d="M6 7.5v10.4c0 1.2.9 2.1 2.1 2.1h7.8c1.2 0 2.1-.9 2.1-2.1V7.5"/><path d="M5.2 4.2h13.6v3.3H5.2z"/><path d="M9.6 12.2c1.6.9 3.2.9 4.8 0"/>',
+  home:'<path d="M4.4 11.1L12 4.5l7.6 6.6"/><path d="M6.5 10.4v8.1c0 1 .8 1.7 1.7 1.7h7.6c.9 0 1.7-.7 1.7-1.7v-8.1"/><path d="M9.4 15.2c1.7-1.1 3.5-1.1 5.2 0"/>',
+  spark:'<path d="M11.2 3.3l2 5.5 5.5 2-5.5 2-2 5.5-2-5.5-5.5-2 5.5-2z"/><path d="M18 15.5l.8 2.1 2.1.8-2.1.8-.8 2.1-.8-2.1-2.1-.8 2.1-.8z"/>'
+};
+const READABLE_ICONS={
+  folder:'<path d="M3.6 18.3V7c0-.9.7-1.6 1.6-1.6h4.3l1.9 2.1h7.4c.9 0 1.6.7 1.6 1.6v9.2c0 .9-.7 1.6-1.6 1.6H5.2c-.9 0-1.6-.7-1.6-1.6z"/><path d="M3.8 9.4h16.4"/>',
+  grid:'<rect x="3.6" y="3.6" width="6.6" height="6.6" rx="2"/><rect x="13.8" y="3.6" width="6.6" height="6.6" rx="2"/><rect x="3.6" y="13.8" width="6.6" height="6.6" rx="2"/><rect x="13.8" y="13.8" width="6.6" height="6.6" rx="2"/><path d="M6.2 6.9h1.4M16.4 17.1h1.4"/>',
+  star:'<path d="M12 3.8l2.2 5.1 5.4.5-4.1 3.5 1.3 5.3L12 15.4l-4.8 2.8 1.3-5.3-4.1-3.5 5.4-.5z"/>',
+  inbox:'<path d="M5.4 5.2h13.2l2.2 7.4v4.7c0 1.4-1.1 2.5-2.5 2.5H5.7c-1.4 0-2.5-1.1-2.5-2.5v-4.7z"/><path d="M3.7 12.6h4.4l1.2 2.6h5.4l1.2-2.6h4.4"/>',
+  terminal:'<rect x="3.5" y="4.7" width="17" height="14.6" rx="3.2"/><path d="M7.4 10.3l2.4 2-2.4 2"/><path d="M12.1 15h4.8"/>',
+  globe:'<circle cx="12" cy="12" r="8.3"/><path d="M4 12h16"/><path d="M12 3.7c2.1 2.4 3.2 5.1 3.2 8.3s-1.1 5.9-3.2 8.3c-2.1-2.4-3.2-5.1-3.2-8.3S9.9 6.1 12 3.7z"/>',
+  app:'<rect x="3.8" y="4.4" width="16.4" height="15.2" rx="3.3"/><path d="M3.8 9h16.4"/><path d="M7 6.7h.1M10 6.7h.1"/><path d="M8 13.2h8M8 16h5.6"/>',
+  file:'<path d="M13.4 3.8H7.6c-1 0-1.8.8-1.8 1.8v12.8c0 1 .8 1.8 1.8 1.8h8.8c1 0 1.8-.8 1.8-1.8V8.6z"/><path d="M13.4 3.8v4.8h4.8"/><path d="M9 13h6M9 16h4"/>',
+  lock:'<rect x="4.6" y="10.2" width="14.8" height="10" rx="3"/><path d="M8.1 10.2V7.7a3.9 3.9 0 0 1 7.8 0v2.5"/><path d="M12 14.2v2.4"/>',
+  clock:'<circle cx="12" cy="12" r="8.4"/><path d="M12 7.5V12l3 1.9"/>',
+  archive:'<rect x="3.4" y="4.5" width="17.2" height="4.3" rx="1.4"/><path d="M5.3 8.8v9.1c0 1.2.9 2.1 2.1 2.1h9.2c1.2 0 2.1-.9 2.1-2.1V8.8"/><path d="M10 13h4"/>',
+  home:'<path d="M4.4 10.7L12 4.5l7.6 6.2v8c0 .9-.7 1.6-1.6 1.6H6c-.9 0-1.6-.7-1.6-1.6z"/><path d="M9.4 20.3v-5.8h5.2v5.8"/>',
+  spark:'<path d="M11 3.4l1.8 4.7 4.7 1.8-4.7 1.8L11 16.4 9.2 11.7 4.5 9.9l4.7-1.8z"/><path d="M17.6 15.4l.9 2.2 2.2.9-2.2.9-.9 2.2-.9-2.2-2.2-.9 2.2-.9z"/>'
+};
+const ICON_VARIANTS={abstract:ABSTRACT_ICONS,readable:READABLE_ICONS};
+function activeIconVariant(){
+  const style=document.body?.dataset?.iconStyle;
+  return style==='abstract'||style==='readable'?style:'plain';
+}
+function iconBody(name){
+  const safe=hasIcon(name)?name:'spark';
+  const set=ICON_VARIANTS[activeIconVariant()];
+  return (set&&set[safe])||ICONS[safe]||ICONS.spark;
+}
 /* 图标渲染：统一 24 视口 + 描边，颜色一律 currentColor，尺寸交给 CSS。 */
 function iconSvg(name){
-  const body=hasIcon(name)?ICONS[name]:ICONS.spark;
-  return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">'+body+'</svg>';
+  const variant=activeIconVariant();
+  const stroke=variant==='abstract'?'1.78':variant==='readable'?'1.7':'1.65';
+  return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="'+stroke+'" stroke-linecap="round" stroke-linejoin="round">'+iconBody(name)+'</svg>';
 }
 function iconInto(box,name){if(box)box.innerHTML=iconSvg(name);return box}
 /* 把标记里 data-icon 声明的图标填进对应容器（按钮里的 .bar-ic/.nav-icon，否则写进元素本身）。 */
@@ -694,6 +816,13 @@ function hydrateIcons(scope){
     iconInto(host.querySelector('.bar-ic,.nav-icon')||host,host.dataset.icon);
   });
 }
+function refreshIconGlyphs(scope){
+  const root=scope||document;
+  hydrateIcons(root);
+  root.querySelectorAll('[data-icon-name]').forEach(box=>iconInto(box,box.dataset.iconName));
+  paintIconSlot();
+}
+window.PWB_ICONS={refresh:refreshIconGlyphs};
 
 /* ---------------------- 品牌标（顶栏 / 侧栏左上角） ----------------------
    默认画 M4 设计的「个」字几何标；点一下可以换成自己的照片 / Logo。
@@ -903,8 +1032,9 @@ function renderNav(){
     if(row.sep){const sep=document.createElement('div');sep.className='nav-sep';nav.append(sep);continue}
     const button=document.createElement('button');
     button.type='button';
-    button.className='nav-link'+(state.view===row.view?' active':'');
+    button.className='nav-link'+(row.category?' category-link':'')+(state.view===row.view?' active':'');
     button.dataset.view=row.view;
+    if(row.category)button.dataset.categoryKey=row.category.key;
     /* 文字提示用于「只显示图标」的紧凑侧栏（M4-PREF 的悬停提示读取它）。 */
     button.dataset.tip=row.label+(row.count?'（'+row.count+'）':'');
     const icon=document.createElement('span');icon.className='nav-icon';
@@ -1134,7 +1264,7 @@ function buildSegmented(kinds,current,onPick){
     const button=document.createElement('button');
     button.type='button';
     button.className=kind===current?'on':'';
-    const icon=document.createElement('span');icon.className='seg-icon';iconInto(icon,KINDS[kind].icon);
+    const icon=document.createElement('span');icon.className='seg-icon';icon.dataset.iconName=KINDS[kind].icon;iconInto(icon,KINDS[kind].icon);
     const label=document.createElement('span');label.textContent=KINDS[kind].label;
     button.append(icon,label);
     button.onclick=()=>onPick(kind);
@@ -1148,7 +1278,7 @@ function buildKindCards(box,current,onPick){
     card.type='button';
     card.className='kind-card'+(kind===current?' on':'');
     const title=document.createElement('b');
-    const tIcon=document.createElement('span');tIcon.className='kind-icon';iconInto(tIcon,KINDS[kind].icon);
+    const tIcon=document.createElement('span');tIcon.className='kind-icon';tIcon.dataset.iconName=KINDS[kind].icon;iconInto(tIcon,KINDS[kind].icon);
     const tText=document.createElement('span');tText.textContent=KINDS[kind].label;
     title.append(tIcon,tText);
     const blurb=document.createElement('span');blurb.textContent=KINDS[kind].blurb;
@@ -1656,6 +1786,26 @@ async function persistOrder(grid){
   try{await post('/items/reorder',{ids});await loadItems()}
   catch(error){console.error(error)}
 }
+/* 侧栏分类与条目网格分别排序：分类复用 Category.order，通过已有分类更新接口逐项写回。
+   逐项 await 避免两个写 catalog.json 的请求并发覆盖彼此。 */
+let categoryOrderSave=Promise.resolve();
+function persistCategoryOrder(nav){
+  const keys=[...nav.querySelectorAll('.nav-link.category-link')].map(link=>link.dataset.categoryKey);
+  if(keys.length<2)return;
+  categoryOrderSave=categoryOrderSave.then(async()=>{
+    const categories=new Map(state.categories.map(category=>[category.key,category]));
+    for(let order=0;order<keys.length;order++){
+      const category=categories.get(keys[order]);
+      if(category)await post('/categories/update',{key:category.key,label:category.label,order});
+    }
+    await loadItems();
+  }).catch(async error=>{
+    console.error(error);
+    try{await loadItems()}catch(reloadError){console.error(reloadError)}
+    setStatus('分类排序未保存：'+error.message,true);
+  });
+  return categoryOrderSave;
+}
 
 /* 自绘标题栏：桌面端窗口去掉了系统边框（见 tauri.conf.json 的 decorations:false），
    所以最小化/最大化/关闭要由这里接管；浏览器版没有窗口可控制，按钮保持隐藏。
@@ -1692,6 +1842,7 @@ connect();
    ========================================================================== */
 (()=>{
   const KEY='pwb.skin';
+  const NOCTURNE_INTRO_KEY='pwb.skin.nocturne-intro.v1';
   const CFG_KEY='pwb.skin.custom';
   const el=id=>document.getElementById(id);
   /* 自定义外观的默认值；「恢复默认」就是把配置清回这里。 */
@@ -1712,6 +1863,8 @@ connect();
       '--ok':'#1c7a56','--ok-line':'rgba(28,160,110,.4)','--ok-bg':'rgba(214,245,231,.6)',
       '--danger':'#c0392b','--scrim':'rgba(112,58,44,.35)',
       '--blur':'18px','--panel-border':'rgba(255,255,255,.66)','--panel-shadow':'0 8px 28px rgba(210,116,86,.16)',
+      '--glass-sheen':'linear-gradient(145deg,rgba(255,255,255,.62),rgba(255,244,236,.16) 42%,rgba(255,255,255,.28))','--glass-edge':'rgba(255,255,255,.86)','--glass-depth':'rgba(183,84,54,.12)','--glass-glow':'rgba(255,255,255,.58)','--glass-inner':'rgba(255,255,255,.14)',
+      '--nav-card-bg':'rgba(255,255,255,.44)','--nav-card-border':'rgba(255,255,255,.72)','--nav-card-shadow':'0 16px 38px rgba(190,90,58,.16),inset 0 1px 0 rgba(255,255,255,.72)',
       '--bar-bg':'linear-gradient(100deg,rgba(255,255,255,.46),rgba(255,231,216,.24) 46%,rgba(255,255,255,.4))','--bar-border':'rgba(255,255,255,.6)','--bar-shadow':'0 8px 22px rgba(208,110,80,.14),inset 0 -1px 0 rgba(255,255,255,.5)',
       '--scroll-thumb':'rgba(176,88,62,.28)','--scroll-thumb-hover':'rgba(176,88,62,.46)','--scroll-track':'transparent',
       '--radius':'18px','--radius-sm':'14px','--radius-lg':'20px','--radius-xs':'11px',
@@ -1726,6 +1879,8 @@ connect();
       '--ok':'#4ade9a','--ok-line':'rgba(74,222,154,.4)','--ok-bg':'rgba(74,222,154,.12)',
       '--danger':'#ff8577','--scrim':'rgba(2,4,16,.6)',
       '--blur':'18px','--panel-border':'rgba(255,255,255,.16)','--panel-shadow':'0 8px 28px rgba(0,0,16,.45)',
+      '--glass-sheen':'linear-gradient(145deg,rgba(255,255,255,.18),rgba(255,255,255,.035) 44%,rgba(139,156,247,.10))','--glass-edge':'rgba(255,255,255,.26)','--glass-depth':'rgba(0,0,20,.28)','--glass-glow':'rgba(255,255,255,.12)','--glass-inner':'rgba(255,255,255,.04)',
+      '--nav-card-bg':'rgba(24,28,52,.50)','--nav-card-border':'rgba(255,255,255,.18)','--nav-card-shadow':'0 18px 42px rgba(0,0,24,.46),inset 0 1px 0 rgba(255,255,255,.16)',
       '--bar-bg':'linear-gradient(100deg,rgba(36,40,74,.62),rgba(52,46,98,.5))','--bar-border':'rgba(255,255,255,.14)','--bar-shadow':'0 8px 22px rgba(0,0,20,.4),inset 0 -1px 0 rgba(255,255,255,.07)',
       '--scroll-thumb':'rgba(255,255,255,.22)','--scroll-thumb-hover':'rgba(255,255,255,.4)','--scroll-track':'transparent',
       '--radius':'18px','--radius-sm':'14px','--radius-lg':'20px','--radius-xs':'11px',
@@ -1765,6 +1920,25 @@ connect();
       '--scroll-thumb':'rgba(200,120,148,.28)','--scroll-thumb-hover':'rgba(200,120,148,.46)','--scroll-track':'transparent',
       '--radius':'22px','--radius-sm':'17px','--radius-lg':'26px','--radius-xs':'13px',
       '--sh-raised':'0 12px 32px rgba(214,140,166,.22)','--sh-float':'0 24px 54px rgba(180,110,138,.28)'}},
+    /* 玫瑰圣殿：参考图里的新古典粉色拱廊被抽象成 CSS 背景；用半透明白色、
+       月牙顶栏与圆形细节保留精致感，且不需要加载图片或额外资源。 */
+    {id:'nocturne-rose',name:'Nocturne · 玫瑰圣殿',swatch:'#cc6387',vars:{
+      '--ink':'#563b48','--muted':'#967280','--faint':'#b895a2',
+      '--line':'rgba(255,255,255,.70)','--line-strong':'rgba(170,92,122,.28)',
+      '--paper':'rgba(255,250,251,.62)','--paper-solid':'#fff9fa','--paper-hover':'rgba(255,255,255,.84)',
+      '--wash':'linear-gradient(155deg,#f3c6d4 0%,#f1bbcd 46%,#f8dfe5 100%)',
+      '--brand':'#cc6387','--brandwash':'rgba(204,99,135,.14)','--brand-ink':'#aa4168','--brand-line':'rgba(204,99,135,.42)','--on-brand':'#fff',
+      '--soft':'rgba(255,255,255,.67)','--soft-ink':'#825766',
+      '--ok':'#21795b','--ok-line':'rgba(33,121,91,.34)','--ok-bg':'rgba(230,248,239,.68)',
+      '--danger':'#bd3f51','--scrim':'rgba(96,42,64,.38)',
+      '--blur':'22px','--panel-border':'rgba(255,255,255,.82)','--panel-shadow':'0 12px 34px rgba(151,77,108,.16)',
+      '--bar-bg':'linear-gradient(105deg,rgba(255,255,255,.76),rgba(255,241,245,.59) 48%,rgba(255,255,255,.68))','--bar-border':'rgba(255,255,255,.88)','--bar-shadow':'0 12px 30px rgba(143,69,101,.15),inset 0 -1px 0 rgba(184,89,123,.11)',
+      '--bar-btn-bg':'rgba(255,255,255,.73)','--bar-btn-ink':'#a24f6d','--bar-btn-border':'rgba(255,255,255,.84)',
+      '--nav-tile-bg':'rgba(255,255,255,.84)','--nav-tile-ink':'#b25278',
+      '--tip-bg':'#fff9fa','--tip-ink':'#563b48','--tip-border':'rgba(204,99,135,.24)',
+      '--scroll-thumb':'rgba(183,86,120,.30)','--scroll-thumb-hover':'rgba(183,86,120,.50)','--scroll-track':'transparent',
+      '--radius':'28px','--radius-sm':'19px','--radius-lg':'30px','--radius-xs':'13px',
+      '--sh-raised':'0 12px 32px rgba(151,77,108,.22)','--sh-float':'0 28px 62px rgba(125,57,87,.30)'}},
     /* custom 的 vars 故意留空：它由 customVars() 按用户设置现算，别在这里写死。 */
     {id:'custom',name:'自定义 · 我的图片',swatch:'#e85c3f',vars:{}}
   ];
@@ -2022,8 +2196,11 @@ connect();
     apply,
     openCustom
   };
-  let saved=null;try{saved=localStorage.getItem(KEY)}catch(e){}
-  apply(saved||'liquid-glass');
+  /* 已有用户手动选过的皮肤不应被持续覆盖；这次新皮肤发布时只迁移一次，
+     确保老工作台刷新后也能直接看到完整新设计。 */
+  let saved=null,showNocturne=false;
+  try{saved=localStorage.getItem(KEY);showNocturne=!localStorage.getItem(NOCTURNE_INTRO_KEY);if(showNocturne)localStorage.setItem(NOCTURNE_INTRO_KEY,'1')}catch(e){}
+  apply(showNocturne?'nocturne-rose':(saved||'nocturne-rose'));
 })();
 </script>
 <script>
@@ -2125,13 +2302,84 @@ connect();
     drag=null;
     if(orderOf(grid)!==initial)persistOrder(grid);
   }
+
+  /* 侧栏分类排序与图标排序共用 Pointer Events，但只接受动态生成的分类链接。
+     「全部内容」「常用」和「待补充」没有 category-link，因而始终固定在原位。 */
+  let navDrag=null,navEatClick=false;
+  document.addEventListener('click',event=>{
+    if(!navEatClick)return;
+    navEatClick=false;
+    event.preventDefault();event.stopPropagation();
+  },true);
+  document.addEventListener('pointerdown',event=>{
+    if(event.button!==0||drag||navDrag)return;
+    const link=event.target.closest?.('.nav-link.category-link');
+    if(!link)return;
+    const nav=link.closest('#nav');
+    if(!nav)return;
+    const box=link.getBoundingClientRect();
+    navDrag={link,nav,pointerId:event.pointerId,startX:event.clientX,startY:event.clientY,offsetX:event.clientX-box.left,offsetY:event.clientY-box.top,ghost:null,active:false,initial:navOrder(nav)};
+    if(link.setPointerCapture){try{link.setPointerCapture(event.pointerId)}catch(error){}}
+  },true);
+  document.addEventListener('pointermove',event=>{
+    if(!navDrag||event.pointerId!==navDrag.pointerId)return;
+    if(!navDrag.active){
+      if(Math.abs(event.clientX-navDrag.startX)+Math.abs(event.clientY-navDrag.startY)<THRESHOLD)return;
+      beginNavDrag();
+    }
+    event.preventDefault();
+    navDrag.ghost.style.left=(event.clientX-navDrag.offsetX)+'px';
+    navDrag.ghost.style.top=(event.clientY-navDrag.offsetY)+'px';
+    placeNavAt(event.clientX,event.clientY);
+  },true);
+  document.addEventListener('pointerup',event=>{
+    if(!navDrag||event.pointerId!==navDrag.pointerId)return;
+    if(!navDrag.active){navDrag=null;return}
+    navEatClick=true;
+    setTimeout(()=>{navEatClick=false},0);
+    endNavDrag();
+  },true);
+  document.addEventListener('pointercancel',()=>{if(navDrag&&navDrag.active)endNavDrag();else navDrag=null},true);
+  function navOrder(nav){return [...nav.querySelectorAll('.nav-link.category-link')].map(link=>link.dataset.categoryKey).join(',')}
+  function beginNavDrag(){
+    const box=navDrag.link.getBoundingClientRect();
+    const ghost=navDrag.link.cloneNode(true);
+    ghost.classList.add('drag-ghost');
+    ghost.style.width=box.width+'px';
+    ghost.style.height=box.height+'px';
+    ghost.style.left=box.left+'px';
+    ghost.style.top=box.top+'px';
+    document.body.append(ghost);
+    navDrag.ghost=ghost;
+    navDrag.active=true;
+    navDrag.link.classList.add('drag-source');
+    document.body.classList.add('dragging-category');
+  }
+  function placeNavAt(x,y){
+    const target=document.elementFromPoint(x,y)?.closest?.('.nav-link.category-link');
+    if(!target||target===navDrag.link||target.closest('#nav')!==navDrag.nav)return;
+    const box=target.getBoundingClientRect();
+    const horizontal=matchMedia('(max-width:760px)').matches;
+    const after=horizontal?x>box.left+box.width/2:y>box.top+box.height/2;
+    const reference=after?target.nextElementSibling:target;
+    if(reference===navDrag.link||navDrag.link.nextElementSibling===reference)return;
+    animatedInsert(navDrag.nav,navDrag.link,reference);
+  }
+  function endNavDrag(){
+    const nav=navDrag.nav,link=navDrag.link,ghost=navDrag.ghost,initial=navDrag.initial;
+    if(ghost)ghost.remove();
+    link.classList.remove('drag-source');
+    document.body.classList.remove('dragging-category');
+    navDrag=null;
+    if(navOrder(nav)!==initial)persistCategoryOrder(nav);
+  }
 })();
 </script>
 <script>
 /* ============================================================================
    模块 M4-PREF：界面偏好 + 设置面板 + 悬停文字提示
-   - 四组偏好存在 localStorage（键 pwb.prefs），只往 <body> 上写类与 data-*，
-     对应外观全部由 M4-CSS 的 body[data-icon-style] / body[data-bar-style] / .nav-compact
+   - 五组偏好存在 localStorage（键 pwb.prefs），只往 <body> 上写类与 data-*，
+     对应外观全部由 M4-CSS 的 body[data-icon-style] / body[data-nav-style] / body[data-bar-style] / .nav-compact
      规则承担，组件样式里不写任何判断
    - 顶栏按钮与紧凑侧栏的「文字」是收起的，鼠标停上去由这里的浮层补回（读元素的 data-tip）
    - 皮肤列表来自 window.PWB_SKIN（M4-SKIN 暴露），连接/同步来自 window.PWB_APP（M4-MAIN 暴露）
@@ -2139,9 +2387,12 @@ connect();
    ========================================================================== */
 (()=>{
   const KEY='pwb.prefs';
-  /* 四组偏好的默认值；键名同时是按钮 data-* 的 dataset 键。 */
-  const DEFAULTS={nav:'expanded',barLabels:'off',barStyle:'circle',iconStyle:'plain'};
+  /* 五组偏好的默认值；键名同时是按钮 data-* 的 dataset 键。 */
+  const DEFAULTS={nav:'expanded',navStyle:'card',barLabels:'off',barStyle:'circle',iconStyle:'plain'};
+  const ICON_STYLE_LABELS={plain:'极简线稿',tile:'圆角方块',abstract:'抽象符号',readable:'直观重绘'};
+  const VALID_ICON_STYLES=new Set(Object.keys(ICON_STYLE_LABELS));
   const SEGS=[
+    {id:'navStyleSeg',ds:'navstyle',key:'navStyle'},
     {id:'navModeSeg',ds:'nav',key:'nav'},
     {id:'barLabelSeg',ds:'barlabel',key:'barLabels'},
     {id:'barStyleSeg',ds:'barstyle',key:'barStyle'},
@@ -2158,6 +2409,9 @@ connect();
       const saved=JSON.parse(localStorage.getItem(KEY)||'null');
       if(saved&&typeof saved==='object')Object.assign(prefs,saved);
     }catch(e){}
+    if(prefs.iconStyle==='soft')prefs.iconStyle='abstract';
+    if(prefs.iconStyle==='solid')prefs.iconStyle='readable';
+    if(!VALID_ICON_STYLES.has(prefs.iconStyle))prefs.iconStyle=DEFAULTS.iconStyle;
     return prefs;
   }
   function write(patch){
@@ -2169,9 +2423,11 @@ connect();
   function apply(){
     const p=read(),body=document.body;
     body.classList.toggle('nav-compact',p.nav==='compact');
+    body.dataset.navStyle=p.navStyle;
     body.classList.toggle('bar-labels',p.barLabels==='on');
     body.dataset.barStyle=p.barStyle;
     body.dataset.iconStyle=p.iconStyle;
+    window.PWB_ICONS?.refresh?.();
     const toggle=document.querySelector('[data-action="toggle-nav"] .nav-text');
     if(toggle)toggle.textContent=p.nav==='compact'?'展开文字':'收起文字';
   }
@@ -2265,9 +2521,10 @@ connect();
       box.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset[seg.ds]===p[seg.key]));
     }
     const tipBox=el('navModeTip');
-    if(tipBox)tipBox.textContent=p.nav==='compact'
+    if(tipBox)tipBox.textContent=(p.nav==='compact'
       ?'侧栏只留图标，宽度收到 68px；鼠标停上去会浮出名称。'
-      :'图标和文字都显示。想贴边省地方就切成「只显示图标」。';
+      :'图标和文字都显示。想贴边省地方就切成「只显示图标」。')+
+      ' 当前版式：'+({card:'信息卡片',pill:'柔和胶囊',rail:'悬浮导轨'}[p.navStyle]||'信息卡片')+'。';
     renderSkins();
     renderDemo();
   }

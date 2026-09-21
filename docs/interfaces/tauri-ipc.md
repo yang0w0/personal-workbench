@@ -23,15 +23,22 @@
 
 前端通过 `window.__TAURI__.core.invoke('<命令>', { input })` 调用。`nativeInvoke` 存在即走本通道，因此**浏览器版的 HTTP 契约与这里的命令名必须语义一致**。
 
-### 1. IPC 命令清单（10 个）
+### 1. IPC 命令清单（17 个）
 
 | 命令 | 入参 | 返回 | 对应 HTTP 接口 |
 | --- | --- | --- | --- |
 | `get_status` | — | `{ ok: true, dataPath }` | `GET /api/status` |
-| `get_items` | — | `{ items: Item[] }`（**无 `categories`**） | `GET /api/items` |
-| `scan_items` | — | `{ discovered, removed, items }` | `POST /api/scan` |
-| `create_item` | `{ input: NewItem }` | `{ item }` | `POST /api/items` |
-| `complete_metadata` | `{ input: { id, category, title, description, tags } }` | `{ item }` | `POST /api/items/metadata` |
+| `get_items` | — | `{ items, categories, kinds }` | `GET /api/items` |
+| `get_categories` | — | `{ categories }` | `GET /api/categories` |
+| `list_browsers` | — | `{ browsers }` | `GET /api/browsers` |
+| `scan_items` | — | `{ discovered, removed, items, categories }` | `POST /api/scan` |
+| `create_category` | `{ input: { label, kind?, symbol?, note? } }` | `{ category, categories }` | `POST /api/categories` |
+| `update_category` | `{ input: { key, label, symbol?, note?, kind?, order? } }` | `{ category, categories }` | `POST /api/categories/update` |
+| `delete_category` | `{ input: { key, force?, removeFolder? } }` | `{ ok: true, categories }` | `POST /api/categories/delete` |
+| `list_shortcuts` | — | `{ shortcuts }` | `GET /api/shortcuts` |
+| `shortcut_detail` | `{ input: { path } }` | `{ shortcut }` | `GET /api/shortcuts/icon` |
+| `create_item` | `{ input: NewItem }` | `{ item, categories }` | `POST /api/items` |
+| `complete_metadata` | `{ input: { id, category, title, description, tags, ... } }` | `{ item, categories }` | `POST /api/items/metadata` |
 | `hide_item` | `{ input: { id } }` | `{ item }` | `POST /api/items/hide` |
 | `open_item` | `{ input: { id } }` | `{ ok: true }` | `POST /api/items/open` |
 | `update_item` | `{ input: { id, title, description, tags, icon? } }` | `{ item }` | `POST /api/items/update` |
@@ -63,7 +70,7 @@
 | `data_root()` | `workspace_root()/data` |
 | `catalog_path()` | `data/catalog.json` |
 | `source_join(source)` | 只接受**两层**相对路径（`分类/文件名`），且解析后必须仍在 `data/` 内，否则返回 `None` |
-| `ensure_directories()` | 按 `read_catalog().categories` 里每个分类的 `folder` 逐个建目录并写 `.gitkeep`（内置默认六个：脚本 / 网址 / 应用 / 文档 / 文件夹 / 待整理） |
+| `ensure_directories()` | 按 `read_catalog().categories` 里每个分类的 `folder` 逐个建目录并写 `.gitkeep`（内置默认五个：脚本 / 网址 / 应用 / 文档 / 待整理） |
 | `new_id()` | `<unix秒>-<pid>-<自增计数器>` |
 | `now()` | **Unix 秒的字符串**（HTTP 端是 ISO 8601） |
 | 写盘 | 先写 `catalog.json.tmp` 再 `rename` 覆盖 |
@@ -73,13 +80,16 @@
 `app/index.html` 的 `request()` 里维护了 HTTP 路径 → IPC 命令的映射表：
 
 ```js
-{'/status':'get_status','/items':'get_items','/scan':'scan_items',
- '/items/metadata':'complete_metadata','/items/hide':'hide_item','/items/open':'open_item',
- '/items/update':'update_item','/items/delete':'delete_item','/items/reorder':'reorder_items'}
+{'GET /status':'get_status','GET /items':'get_items','GET /categories':'get_categories',
+ 'GET /shortcuts':'list_shortcuts','GET /shortcuts/icon':'shortcut_detail','GET /browsers':'list_browsers',
+ 'POST /scan':'scan_items','POST /categories':'create_category','POST /categories/update':'update_category',
+ 'POST /categories/delete':'delete_category','POST /items':'create_item','POST /items/metadata':'complete_metadata',
+ 'POST /items/hide':'hide_item','POST /items/open':'open_item','POST /items/update':'update_item',
+ 'POST /items/delete':'delete_item','POST /items/reorder':'reorder_items'}
 ```
 
 - 新增 HTTP 路径时，**必须同时在 `M4` 的这张表里加映射**，否则浏览器版能用、桌面版会 `invoke(undefined)` 失败。
-- `GET /status`、`GET /items` 不传 `input`；其余命令统一包一层 `{ input: body }`。
+- `GET /status`、`GET /items`、`GET /categories`、`GET /shortcuts`、`GET /browsers` 不传 `input`；其余命令统一包一层 `{ input: body }`。`shortcut_detail` 虽是 GET，对应的 `path` 仍经 `{ input }` 传入。
 
 ### 5. 配置契约（`tauri.conf.json`）
 
@@ -177,3 +187,5 @@ pub fn read_icon_data_url(icon_location: &str, icon_index: i32, target: &str) ->
 | 2026-09-20 | 窗口改为无边框（`decorations:false`），系统标题栏由前端自绘；新增 `windows[].label=main` 与能力文件 `capabilities/default.json`（窗口拖拽/最小化/最大化/关闭四个权限）。前端侧契约见 app-ui.md 5.1。 |
 | 2026-09-20 | **与浏览器端契约统一**：`Catalog` 增加 `categories`（修掉写回丢分类的高风险 bug）；`Item` 增加 `target`/`arguments`/`working_directory`/`icon_location`（`url` 保留为只读兼容）；`default_categories()` 与 `M1` 对齐为同一套五个分类；`scan()` 改为按 `catalog.categories` 的 `folder` 遍历；IPC 命令补齐到 16 个并与前端 `IPC_MAP` 一一对应；`shortcut.rs` 接线参与编译。已修复项移入「已修复」留档，仅剩时间戳格式未收敛。 |
 | 2026-09-21 | 与 `M1` 对齐：`default_categories()` 新增第 5 项内置分类「文件夹」（`kind` 仍是 `file`），并给 `read_catalog()` 补上同样的**内置分类按 `key`/`folder` 补齐**逻辑（原先只补收件箱，新增的内置分类对已有 `catalog.json` 不可见）。同时修正本节 `ensure_directories()` 的描述——它实际是按 `catalog.categories` 的 `folder` 逐个创建，而不是写死的五个目录。 |
+| 2026-09-21 | 同步实际 IPC 清单：分类管理、快捷方式、浏览器探测与完整四类条目能力均已接线；`get_items`/`scan_items` 也会返回分类。补充 `POST /categories/update → update_category` 映射，供前端持久化侧栏分类排序。 |
+| 2026-09-21 | 与 `M1` 同步合并内置「文档」与「文件夹」为「文件」（`key: file`）。`read_catalog()` 会将旧 `folder` 条目迁移到 `file`、移除旧分类，并忽略遗留的 `data/文件夹/` 空目录；文件与目录继续共用 `file` 的打开逻辑。 |
