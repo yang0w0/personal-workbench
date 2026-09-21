@@ -10,8 +10,9 @@
     - 第二个 script 块       M4-SKIN：皮肤系统（五套内置皮肤 + 「自定义外观」动态皮肤，
                               参数存 localStorage 键 pwb.skin.custom，详见 docs/interfaces/app-ui.md 5.3）
     - 第三个 script 块       M4-DRAG：图标拖拽排序（Pointer Events + FLIP），原样勿动
-    - 第四个 script 块       M4-PREF：界面偏好（侧栏是否收文字、顶栏是否收文字与两版外观、
-                              图标两版风格）+ 设置面板 + 悬停文字提示，偏好存 pwb.prefs
+    - 第四个 script 块       M4-PREF：界面偏好（侧栏是否收文字、顶栏是否收文字与两版按钮、
+                              顶栏形式三档「跟随皮肤 / 吸顶通栏 / 悬浮浮岛」、图标四版风格）
+                              + 设置面板 + 悬停文字提示，偏好存 pwb.prefs
 
   边界：
     - 只改本文件。需要后端能力时查 docs/interfaces/http-api.md 与 tauri-ipc.md，
@@ -53,9 +54,17 @@
   /* 顶栏图标按钮：两版顶栏样式（圆形 / 胶囊）共用这几个变量 */
   --bar-btn-bg:var(--soft); --bar-btn-ink:var(--soft-ink); --bar-btn-border:transparent;
   --bar-btn-radius:99px; --bar-btn-size:38px;
+  /* 顶栏形式（M4-PREF 的「顶栏形式」开关）：吸顶通栏 / 悬浮浮岛都由这一组变量画，
+     皮肤可覆盖做细微适配（Nocturne 的月牙顶栏就是把它们换成自己的值）。 */
+  --bar-shape-width:min(760px,calc(100% - 48px));
+  --bar-shape-gap:13px; --bar-shape-min-h:68px; --bar-shape-radius:26px;
+  --bar-shape-border:var(--bar-border); --bar-shape-shadow:var(--bar-shadow);
+  --bar-shape-main-top:14px; --bar-shape-sidebar-top:92px;
   /* 侧栏图标容器：由 M4-PREF 的「图标风格」开关决定是否垫底色（圆角方块） */
   --nav-tile-bg:var(--soft); --nav-tile-ink:var(--soft-ink); --nav-tile-radius:11px;
   --nav-card-bg:var(--paper); --nav-card-border:var(--panel-border); --nav-card-shadow:var(--panel-shadow);
+  /* 圆形胶囊侧栏的按钮底色强度（M4-PREF 的滑块写入 body 变量）；图标本身不随它变淡。 */
+  --orb-button-fill:100%;
   --glass-sheen:linear-gradient(145deg,rgba(255,255,255,.46),rgba(255,255,255,.10) 42%,rgba(255,255,255,.18));
   --glass-edge:rgba(255,255,255,.62); --glass-depth:rgba(23,32,51,.10); --glass-glow:rgba(255,255,255,.42); --glass-inner:rgba(255,255,255,.08);
   --nav-w:200px;
@@ -103,17 +112,15 @@ body[data-skin="sakura-mist"]::before{background:
   radial-gradient(44rem 30rem at 6% 12%,rgba(255,188,210,.55),transparent 70%),
   radial-gradient(40rem 32rem at 96% 18%,rgba(236,170,205,.42),transparent 72%),
   radial-gradient(56rem 36rem at 50% 110%,rgba(255,214,228,.62),transparent 74%)}
-/* Nocturne：用两层柔焦的拱廊、远山和月晕把参考图的「玫瑰圣殿」氛围放进
-   工作台本身，不依赖外部壁纸；内容仍优先于装饰，窄屏时自动淡出两侧拱柱。 */
-body[data-skin="nocturne-rose"]::before,body[data-skin="nocturne-rose"]::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none}
+/* Nocturne：粉雾山景 + 新古典拱廊。山、雾、石柱来自随 app 一起打包的本地背景，
+   不能换回渐变拼图：那只能画出几何色块，复刻不了参考图的真实远景层次。 */
+body[data-skin="nocturne-rose"]{background:transparent;isolation:isolate}
+body[data-skin="nocturne-rose"]::before,body[data-skin="nocturne-rose"]::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1}
 body[data-skin="nocturne-rose"]::before{background:
-  radial-gradient(42rem 25rem at 50% 28%,rgba(255,247,248,.78) 0 10%,transparent 43%),
-  radial-gradient(35rem 23rem at 50% 46%,rgba(189,104,139,.28),transparent 70%),
-  linear-gradient(145deg,transparent 0 18%,rgba(255,237,243,.40) 18.2% 22%,transparent 22.3% 77.7%,rgba(255,237,243,.40) 78% 81.8%,transparent 82%),
-  linear-gradient(180deg,#f5cbd8 0%,#efb8cb 42%,#f7dce3 100%)}
-body[data-skin="nocturne-rose"]::after{inset:84px 6vw 3vh;border-radius:46px 46px 32px 32px;opacity:.62;background:
-  linear-gradient(90deg,rgba(255,255,255,.50) 0 5%,rgba(255,255,255,.08) 5% 8%,transparent 8% 92%,rgba(255,255,255,.08) 92% 95%,rgba(255,255,255,.50) 95% 100%),
-  radial-gradient(70% 65% at 50% 36%,rgba(255,255,255,.12),transparent 70%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.42)}
+  linear-gradient(180deg,rgba(255,241,247,.08),rgba(208,130,163,.10) 100%),
+  url("nocturne-rose-landscape.png") center/cover no-repeat}
+/* 只增加一层柔光，不再画假柱子；真实拱廊已在背景图片里。 */
+body[data-skin="nocturne-rose"]::after{background:radial-gradient(64% 34% at 50% 0%,rgba(255,255,255,.18),transparent 72%),linear-gradient(180deg,transparent 60%,rgba(173,89,125,.12) 100%)}
 h1{margin:0;font-size:19px;font-weight:800;letter-spacing:.4px}
 h2{margin:0;font-size:15px;font-weight:700}
 code{font-family:Consolas,"Courier New",monospace;font-size:.92em;padding:1px 5px;border-radius:5px;background:var(--soft);color:var(--soft-ink)}
@@ -216,59 +223,216 @@ body.dragging-category .nav-link.category-link.drag-ghost{position:fixed;z-index
 .nav-add{display:flex;gap:11px;align-items:center;width:100%;padding:8px 10px;border-radius:12px;background:transparent;color:var(--muted);font-size:13px;font-weight:500;border:1px dashed var(--line-strong)}
 .nav-add:hover{color:var(--brand-ink);border-color:var(--brand-line);background:var(--brandwash)}
 
-/* 图标风格（M4-PREF 的「图标风格」开关，落在 body[data-icon-style]）：
-   - plain / tile 复用基础图标，本体简洁
-   - abstract / readable 会切换 SVG 路径本体，不只是改外框 */
-body[data-icon-style="tile"] .nav-icon{background:var(--nav-tile-bg);color:var(--nav-tile-ink)}
-body[data-icon-style="tile"] .nav-link:hover .nav-icon{background:var(--brandwash);color:var(--brand-ink)}
-body[data-icon-style="tile"] .nav-link.active{background:transparent;color:var(--ink)}
-body[data-icon-style="tile"] .nav-link.active .nav-icon{background:var(--brand);color:var(--on-brand)}
-body[data-icon-style="tile"] .nav-link.active .nav-text{font-weight:700;color:var(--ink)}
-body[data-icon-style="tile"] .nav-link.active .nav-count{background:var(--brandwash);color:var(--brand-ink)}
+/* 图标风格：全局档在 body[data-icon-style]（设置面板的「图标风格」），
+   **每个分类可以单独覆盖**——覆盖直接写在那一行的 .nav-icon 上，
+   由 M4-MAIN 的 renderNav() 逐行落 data-icon-style（来源：M4-PREF 的 pwb.prefs.iconStyles）。
+   两种钩子的属性值完全一样，所以下面每个变体都写两遍选择器（CSS 没有变量式的选择器复用）。
+   ⚠️ 行级钩子必须挂在 .nav-icon 上、不能挂在 .nav-link 上：
+   规则里的文字/计数（.nav-link.active .nav-text 等）只属于整行选中态，
+   挂在行上会把「这个图标是什么风格」误当成「这一行被选中」。
+   - plain：无底色（基础规则）
+   - tile：圆角方块垫底
+   - abstract / readable：除了容器，还会换 SVG 路径本体（见 M4-MAIN 的 ICON_VARIANTS） */
+body[data-icon-style="tile"] .nav-icon,
+[data-icon-style="tile"] .nav-icon{width:32px;height:32px;border-radius:10px;background:var(--nav-tile-bg);color:var(--nav-tile-ink)}
+body[data-icon-style="tile"] .nav-icon svg,
+[data-icon-style="tile"] .nav-icon svg{width:18px;height:18px}
+body[data-icon-style="tile"] .nav-link:hover .nav-icon,
+.nav-link:hover [data-icon-style="tile"].nav-icon{background:var(--brandwash);color:var(--brand-ink)}
+body[data-icon-style="tile"] .nav-link.active,
+[data-icon-style="tile"].nav-link.active{background:transparent;color:var(--ink)}
+body[data-icon-style="tile"] .nav-link.active .nav-icon,
+.nav-link.active [data-icon-style="tile"].nav-icon{background:var(--brand);color:var(--on-brand)}
+body[data-icon-style="tile"] .nav-link.active .nav-text,
+[data-icon-style="tile"].nav-link.active .nav-text{font-weight:700;color:var(--ink)}
+body[data-icon-style="tile"] .nav-link.active .nav-count,
+[data-icon-style="tile"].nav-link.active .nav-count{background:var(--brandwash);color:var(--brand-ink)}
 
-/* 侧边栏三种版式：保留同一套 data-driven 导航，仅由 body[data-nav-style] 改构图。
+/* 侧边栏四种版式：保留同一套 data-driven 导航，仅由 body[data-nav-style] 改构图。
    - card：默认的信息卡片，适合分类较多的工作台
-   - pill：参考图的柔和胶囊分组，适合壁纸 / 玻璃皮肤
    - rail：轻量导轨，把内容区留给高密度工作
+   - arc：弧形导航；圆形图标脱离玻璃底板，沿内凹弧线排布
+   - orb：圆形胶囊；保留居中的圆形按钮构图，但不再使用玻璃底板
    紧凑态仍可叠加在任意版式上，只负责收起文字。 */
-body[data-nav-style="pill"] .sidebar{padding:12px 8px;border-radius:28px;background:linear-gradient(180deg,var(--nav-card-bg),var(--paper-hover));border-color:var(--nav-card-border);box-shadow:var(--nav-card-shadow),inset 0 1px 0 var(--glass-edge),inset 0 -24px 44px var(--glass-depth)}
-body[data-nav-style="pill"] .sidebar .brand-mark{margin-bottom:13px;border-radius:50%}
-body[data-nav-style="pill"] .nav-link{margin:1px 2px;width:calc(100% - 4px);border-radius:99px;padding:9px 11px}
-body[data-nav-style="pill"] .nav-add{margin:4px 2px;width:calc(100% - 4px);border-radius:99px}
-body[data-nav-style="pill"] .nav-sep{margin:10px 12px}
 body[data-nav-style="rail"] .workspace{gap:14px}
 body[data-nav-style="rail"] .sidebar{padding:10px 7px;background:transparent;border-color:transparent;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
 body[data-nav-style="rail"] .sidebar .brand-mark{margin-bottom:14px;border-radius:14px;box-shadow:none}
 body[data-nav-style="rail"] .nav{gap:6px}
 body[data-nav-style="rail"] .nav-link{border-radius:14px;padding:9px 10px;border:1px solid transparent}
-body[data-nav-style="rail"] .nav-link.active{background:var(--paper-solid);color:var(--brand-ink);border-color:var(--brand-line);box-shadow:var(--panel-shadow)}
+/* 选中态只靠颜色区分，不再套一层深色面板（--paper-solid）。
+   紧凑侧栏下 .nav-link 的宽度会收到图标宽（30px）而高度仍是整行（48px），
+   那层面板 + 14px 圆角看上去就是「套住图标的一圈更黑的椭圆框」。
+   tile / abstract / readable 三种图标风格本来就自带底色，plain 靠图标与文字变品牌色。 */
+body[data-nav-style="rail"] .nav-link.active{background:transparent;color:var(--brand-ink)}
 body[data-nav-style="rail"] .nav-link.active .nav-count{background:var(--brandwash);color:var(--brand-ink)}
 body[data-nav-style="rail"] .nav-add{border-radius:14px;background:var(--paper);box-shadow:var(--panel-shadow)}
-body[data-icon-style="abstract"] .nav-icon{color:var(--brand-ink)}
-body[data-icon-style="abstract"] .nav-link.active{background:transparent;color:var(--ink)}
-body[data-icon-style="abstract"] .nav-link.active .nav-icon{background:var(--brand);color:var(--on-brand);border-radius:50%;box-shadow:0 9px 20px var(--brandwash),inset 0 1px 0 var(--glass-edge)}
-body[data-icon-style="abstract"] .nav-link.active .nav-text{font-weight:700}
-body[data-icon-style="abstract"] .nav-link.active .nav-count{background:var(--brandwash);color:var(--brand-ink)}
-body[data-icon-style="readable"] .nav-icon{background:var(--brandwash);color:var(--brand-ink);border-radius:12px;box-shadow:inset 0 0 0 1px var(--brand-line),inset 0 1px 0 var(--glass-edge)}
-body[data-icon-style="readable"] .nav-link:hover .nav-icon{background:var(--soft);color:var(--soft-ink)}
-body[data-icon-style="readable"] .nav-link.active .nav-icon{background:var(--on-brand);color:var(--brand-ink);box-shadow:inset 0 0 0 1px var(--glass-edge)}
-body[data-icon-style="readable"] .nav-link.active .nav-count{background:var(--on-brand);color:var(--brand)}
+/* 弧形导航（arc）：不再给圆形图标垫一整块磨砂玻璃。
+   右侧的内凹弧线承担侧栏轮廓，按钮则使用实体纸面，既保留层次也不会与背景打架。 */
+body[data-nav-style="arc"] .workspace{gap:14px}
+body[data-nav-style="arc"] .sidebar{padding:5px 0 8px;background:transparent;border-color:transparent;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;overflow:visible;align-items:flex-start}
+body[data-nav-style="arc"] .sidebar::before,body[data-nav-style="arc"] .sidebar::after{display:none}
+body[data-nav-style="arc"] .sidebar .brand-mark{margin:0 0 14px 5px;border-radius:15px;box-shadow:0 7px 17px var(--brandwash)}
+body[data-nav-style="arc"] .nav{position:relative;gap:7px;padding:10px 20px 10px 3px;align-items:flex-start}
+body[data-nav-style="arc"] .nav::before{content:"";position:absolute;z-index:-1;top:0;bottom:0;right:0;width:43px;border-right:1px solid var(--panel-border);border-top:1px solid var(--panel-border);border-bottom:1px solid var(--panel-border);border-radius:0 44px 44px 0;opacity:.9}
+body[data-nav-style="arc"] .nav-title{display:none}
+body[data-nav-style="arc"] .nav-link{width:48px;height:48px;padding:0;border-radius:50%;background:var(--paper-solid);border:1px solid var(--panel-border);justify-content:center;gap:0;position:relative;box-shadow:0 5px 14px rgba(30,36,57,.08);transition:transform .18s ease,background .18s ease,box-shadow .18s ease}
+body[data-nav-style="arc"] .nav-link:nth-child(3n+2){transform:translateX(7px)}
+body[data-nav-style="arc"] .nav-link:nth-child(3n){transform:translateX(12px)}
+body[data-nav-style="arc"] .nav-link:hover{background:var(--paper-solid);box-shadow:0 8px 18px var(--brandwash)}
+body[data-nav-style="arc"] .nav-link.active{background:var(--brand);border-color:var(--brand);color:var(--on-brand);box-shadow:0 8px 20px var(--brandwash)}
+body[data-nav-style="arc"] .nav-icon,body[data-nav-style="arc"] .nav-icon svg{width:22px;height:22px}
+body[data-nav-style="arc"] .nav-text{position:absolute;left:calc(100% + 10px);background:var(--paper-solid);color:var(--ink);padding:5px 11px;border-radius:10px;font-size:12px;font-weight:600;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s ease;box-shadow:0 4px 14px rgba(0,0,0,.08);border:1px solid var(--panel-border)}
+body[data-nav-style="arc"] .nav-link:hover .nav-text{opacity:1}
+body[data-nav-style="arc"] .nav-link.active .nav-text{color:var(--brand-ink)}
+body[data-nav-style="arc"] .nav-count{position:absolute;top:-2px;right:-2px;width:18px;height:18px;padding:0;font-size:10px;line-height:18px;border-radius:50%;background:var(--brand);color:var(--on-brand);min-width:unset}
+body[data-nav-style="arc"] .nav-link.active .nav-count{background:var(--on-brand);color:var(--brand)}
+body[data-nav-style="arc"] .nav-sep{width:31px;margin:8px 0 8px 8px}
+body[data-nav-style="arc"] .nav-add{width:48px;height:48px;margin-left:5px;padding:0;border-radius:50%;justify-content:center;gap:0;border:1.5px dashed var(--line-strong);background:var(--paper-solid);box-shadow:0 5px 14px rgba(30,36,57,.06)}
+body[data-nav-style="arc"] .nav-add:hover{background:var(--paper-solid);border-color:var(--brand-line)}
+body[data-nav-style="arc"] .nav-add .nav-text{display:none}
+/* 弧形导航保留图标风格的路径差异，但不在圆按钮里再套一层玻璃形状。 */
+body[data-nav-style="arc"][data-icon-style="tile"] .nav-icon,
+body[data-nav-style="arc"] [data-icon-style="tile"].nav-icon,
+body[data-nav-style="arc"][data-icon-style="abstract"] .nav-icon,
+body[data-nav-style="arc"] [data-icon-style="abstract"].nav-icon,
+body[data-nav-style="arc"][data-icon-style="readable"] .nav-icon,
+body[data-nav-style="arc"] [data-icon-style="readable"].nav-icon{width:22px;height:22px;border-radius:50%;background:transparent;box-shadow:none}
+body.nav-compact[data-nav-style="arc"] .sidebar{padding:5px 0 8px}
+body.nav-compact[data-nav-style="arc"] .nav-link{width:44px;height:44px}
+body.nav-compact[data-nav-style="arc"] .nav-link .nav-text{display:none}
+/* 圆形胶囊（orb）：让偏好圆形按钮的用户保留原有构图；与弧形导航一样，
+   侧栏本身完全透明，圆按钮采用实体纸面而非磨砂玻璃。 */
+body[data-nav-style="orb"] .workspace{gap:14px}
+body[data-nav-style="orb"] .sidebar{padding:5px 0 8px;background:transparent;border-color:transparent;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;overflow:visible;align-items:center}
+body[data-nav-style="orb"] .sidebar::before,body[data-nav-style="orb"] .sidebar::after{display:none}
+body[data-nav-style="orb"] .sidebar .brand-mark{margin:0 auto 13px;border-radius:50%;box-shadow:0 7px 17px var(--brandwash)}
+body[data-nav-style="orb"] .nav{gap:7px;align-items:center}
+body[data-nav-style="orb"] .nav-title{display:none}
+body[data-nav-style="orb"] .nav-link{width:48px;height:48px;padding:0;border-radius:50%;background:color-mix(in srgb,var(--paper-solid) var(--orb-button-fill),transparent);border:1px solid color-mix(in srgb,var(--panel-border) var(--orb-button-fill),transparent);justify-content:center;gap:0;position:relative;box-shadow:0 5px 14px color-mix(in srgb,var(--ink) calc(var(--orb-button-fill) * .08),transparent);transition:transform .18s ease,background .18s ease,border-color .18s ease,box-shadow .18s ease}
+body[data-nav-style="orb"] .nav-link:hover{transform:scale(1.08);background:var(--paper-solid);box-shadow:0 8px 18px var(--brandwash)}
+body[data-nav-style="orb"] .nav-link.active{background:var(--brand);border-color:var(--brand);color:var(--on-brand);box-shadow:0 8px 20px var(--brandwash);transform:none}
+body[data-nav-style="orb"] .nav-link.active:hover{transform:scale(1.04)}
+body[data-nav-style="orb"] .nav-icon,body[data-nav-style="orb"] .nav-icon svg{width:22px;height:22px}
+body[data-nav-style="orb"] .nav-text{position:absolute;left:calc(100% + 10px);background:var(--paper-solid);color:var(--ink);padding:5px 11px;border-radius:10px;font-size:12px;font-weight:600;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s ease;box-shadow:0 4px 14px rgba(0,0,0,.08);border:1px solid var(--panel-border)}
+body[data-nav-style="orb"] .nav-link:hover .nav-text{opacity:1}
+body[data-nav-style="orb"] .nav-link.active .nav-text{color:var(--brand-ink)}
+body[data-nav-style="orb"] .nav-count{position:absolute;top:-2px;right:-2px;width:18px;height:18px;padding:0;font-size:10px;line-height:18px;border-radius:50%;background:var(--brand);color:var(--on-brand);min-width:unset}
+body[data-nav-style="orb"] .nav-link.active .nav-count{background:var(--on-brand);color:var(--brand)}
+body[data-nav-style="orb"] .nav-sep{width:28px;margin:8px auto}
+body[data-nav-style="orb"] .nav-add{width:48px;height:48px;padding:0;border-radius:50%;justify-content:center;gap:0;border:1.5px dashed var(--line-strong);background:var(--paper-solid);box-shadow:0 5px 14px rgba(30,36,57,.06)}
+body[data-nav-style="orb"] .nav-add:hover{background:var(--paper-solid);border-color:var(--brand-line)}
+body[data-nav-style="orb"] .nav-add .nav-text{display:none}
+body[data-nav-style="orb"][data-icon-style="tile"] .nav-icon,
+body[data-nav-style="orb"] [data-icon-style="tile"].nav-icon,
+body[data-nav-style="orb"][data-icon-style="abstract"] .nav-icon,
+body[data-nav-style="orb"] [data-icon-style="abstract"].nav-icon,
+body[data-nav-style="orb"][data-icon-style="readable"] .nav-icon,
+body[data-nav-style="orb"] [data-icon-style="readable"].nav-icon{width:22px;height:22px;border-radius:50%;background:transparent;box-shadow:none}
+body.nav-compact[data-nav-style="orb"] .sidebar{padding:5px 0 8px}
+body.nav-compact[data-nav-style="orb"] .nav-link{width:44px;height:44px}
+body.nav-compact[data-nav-style="orb"] .nav-link .nav-text{display:none}
+/* 四档的「形」也分开：plain 无形、tile 圆角方块、abstract 圆形徽章、readable 有描边的圆角方块。
+   只改容器尺寸与圆角（不碰 .nav-link 的布局），所以紧凑侧栏（--nav-w 收到 68px）也放得下。 */
+body[data-icon-style="abstract"] .nav-icon,
+[data-icon-style="abstract"].nav-icon{width:32px;height:32px;border-radius:50%;background:var(--soft);color:var(--brand-ink)}
+body[data-icon-style="abstract"] .nav-icon svg,
+[data-icon-style="abstract"].nav-icon svg{width:18px;height:18px}
+body[data-icon-style="abstract"] .nav-link.active,
+[data-icon-style="abstract"].nav-link.active{background:transparent;color:var(--ink)}
+body[data-icon-style="abstract"] .nav-link.active .nav-icon,
+.nav-link.active [data-icon-style="abstract"].nav-icon{background:var(--brand);color:var(--on-brand);border-radius:50%;box-shadow:0 9px 20px var(--brandwash),inset 0 1px 0 var(--glass-edge)}
+body[data-icon-style="abstract"] .nav-link.active .nav-text,
+[data-icon-style="abstract"].nav-link.active .nav-text{font-weight:700}
+body[data-icon-style="abstract"] .nav-link.active .nav-count,
+[data-icon-style="abstract"].nav-link.active .nav-count{background:var(--brandwash);color:var(--brand-ink)}
+body[data-icon-style="readable"] .nav-icon,
+[data-icon-style="readable"].nav-icon{width:32px;height:32px;border-radius:11px;background:var(--brandwash);color:var(--brand-ink);box-shadow:inset 0 0 0 1px var(--brand-line),inset 0 1px 0 var(--glass-edge)}
+body[data-icon-style="readable"] .nav-icon svg,
+[data-icon-style="readable"].nav-icon svg{width:19px;height:19px}
+body[data-icon-style="readable"] .nav-link:hover .nav-icon,
+.nav-link:hover [data-icon-style="readable"].nav-icon{background:var(--soft);color:var(--soft-ink)}
+body[data-icon-style="readable"] .nav-link.active .nav-icon,
+.nav-link.active [data-icon-style="readable"].nav-icon{background:var(--on-brand);color:var(--brand-ink);box-shadow:inset 0 0 0 1px var(--glass-edge)}
+body[data-icon-style="readable"] .nav-link.active .nav-count,
+[data-icon-style="readable"].nav-link.active .nav-count{background:var(--on-brand);color:var(--brand)}
 
-/* Nocturne 专属构图：顶栏像悬浮的月牙，内容卡片像半透明纸笺；只借用现有 DOM，
+/* ── 每个分类自己的图标与图标样式（M4-PREF 的「每个分类的图标样式」）──
+   一行 = 一个分类：分类名 + 当前图标 + 四档样式按钮。
+   图标本身也能在这一行直接换（点图标弹出选择器），改动同样只落本端偏好。
+   行内用的是真正的 .nav-icon，所以上面的分档规则原样生效，这里只排行。 */
+.per-cat{display:grid;gap:8px}
+.per-cat-row{display:grid;grid-template-columns:76px 34px minmax(0,1fr);gap:9px;align-items:center}
+.per-cat-row .pname{font-size:12px;font-weight:600;color:var(--soft-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 当前图标：点它弹选择器 */
+.per-cat-row .pick-icon{display:grid;place-items:center;width:34px;height:34px;flex:none;padding:0;border-radius:10px;border:1px dashed var(--line-strong);background:var(--paper-solid);color:var(--soft-ink)}
+.per-cat-row .pick-icon:hover{border-color:var(--brand-line);background:var(--brandwash);color:var(--brand-ink);filter:none}
+.per-cat-row .pick-icon.on{border-style:solid;border-color:var(--brand);color:var(--brand-ink)}
+.per-cat-row .pick-icon .nav-icon{width:26px;height:26px}
+.per-cat-row .pick-icon svg{width:17px;height:17px}
+.per-cat-row .segmented{margin:0}
+.per-cat-row .segmented button{padding:6px 2px;gap:5px;font-size:11.5px}
+.per-cat-row .seg-icon svg{width:17px;height:17px}
+/* 预览格的尺寸归一（26×26 / 17px）写在 <style> 末尾的「per-cat 预览最终覆盖」，
+   原因是要压过 body[data-icon-style="x"] .nav-icon 那批分档规则，靠顺序取胜。 */
+
+/* ── 换图标的小选择器（设置面板里用）────────────────────────────────
+   它是 position:fixed、挂到 <body> 上的浮层，**不是**设置面板里的绝对定位子节点：
+   设置面板的滚动区是 overflow:auto，挂在里面的绝对定位元素会被裁掉
+   （2026-09-21 实测：行在面板底部时弹层只露出顶部一条，下面的图标全被挡住）。
+   改挂 body + fixed + z-index:26（高于 .modal 的 10、低于拖拽幽灵的 60）之后，
+   它和设置面板不再有裁剪关系，也不会被面板盖住。位置由 JS 按触发按钮的视口坐标现算。
+   宽度写在这里，因为 JS 要用它夹取左右位置（免得贴着窗口边缘溢出）。 */
+.icon-pop{position:fixed;z-index:26;width:290px;padding:9px;border:1px solid var(--panel-border);border-radius:var(--radius-sm);background:var(--paper-solid);box-shadow:var(--sh-float)}
+.icon-pop[hidden]{display:none}
+.icon-pop .pop-head{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+.icon-pop .pop-head input{flex:1;min-width:0;font-size:12px;padding:5px 8px}
+.icon-pop .pop-head button{flex:none;font-size:11.5px;padding:5px 9px}
+/* 弹层里的图标格比新建分类弹窗那版更密；组名照样在组的上方（小一号字）。 */
+.icon-pop .icon-pick{max-height:220px;padding:7px;gap:7px}
+.icon-pop .icon-group{gap:4px}
+.icon-pop .icon-group+.icon-group{padding-top:7px}
+.icon-pop .icon-row{grid-template-columns:repeat(auto-fill,minmax(30px,1fr));gap:4px}
+.icon-pop .icon-row-label b{font-size:10.5px}
+.icon-pop .icon-row-label span{font-size:10px}
+.icon-pop .icon-pick button{height:28px;border-radius:8px}
+.icon-pop .icon-pick button svg{width:16px;height:16px}
+/* 「自动解析到的那一枚」：用户没自己挑过时给个虚线框，跟「我挑的」（实心）区分开 */
+.icon-pop .icon-row button.is-auto{border-color:var(--line-strong);border-style:dashed}
+
+/* 顶栏形式与皮肤解耦：auto 保持各皮肤原本的样子，也可以强制成吸顶通栏或悬浮浮岛。
+   形式只管几何（宽度 / 留白 / 圆角 / 边框 / 阴影），配色仍取皮肤的 --bar-* 变量，
+   所以任意皮肤都能配任意形式。 */
+body[data-bar-shape="float"] header{width:var(--bar-shape-width);min-height:var(--bar-shape-min-h);margin:var(--bar-shape-gap) auto 0;padding:0 22px;border:1px solid var(--bar-shape-border);border-radius:var(--bar-shape-radius);box-shadow:var(--bar-shape-shadow)}
+body[data-bar-shape="float"] main{margin-top:var(--bar-shape-main-top)}
+body[data-bar-shape="float"] .sidebar{top:var(--bar-shape-sidebar-top)}
+/* Nocturne 的月牙顶栏只在「跟随皮肤」这一档生效。用户显式选了吸顶通栏 / 悬浮浮岛时
+   这里必须让位给上面的通用规则 —— 否则皮肤规则会把形式又按回月牙，形式等于没解耦。 */
+body[data-bar-shape="auto"][data-skin="nocturne-rose"] header{width:min(720px,calc(100% - 48px));min-height:68px;margin:13px auto 0;padding:0 22px;border:1px solid rgba(255,255,255,.82);border-radius:0 0 34px 34px;box-shadow:0 14px 32px rgba(127,59,88,.16),inset 0 -1px 0 rgba(186,92,126,.10)}
+body[data-bar-shape="auto"][data-skin="nocturne-rose"] main{margin-top:4px}
+body[data-bar-shape="auto"][data-skin="nocturne-rose"] .sidebar{top:94px}
+
+/* Nocturne 专属构图：内容卡片像半透明纸笺；只借用现有 DOM，
    所有文字、数据和交互都仍走通用组件。 */
-body[data-skin="nocturne-rose"] header{width:min(720px,calc(100% - 48px));min-height:68px;margin:13px auto 0;padding:0 22px;border:1px solid rgba(255,255,255,.82);border-radius:0 0 34px 34px;box-shadow:0 14px 32px rgba(127,59,88,.16),inset 0 -1px 0 rgba(186,92,126,.10)}
-body[data-skin="nocturne-rose"] main{max-width:1280px;padding:0 34px;margin-top:4px}
+body[data-skin="nocturne-rose"] main{max-width:1280px;padding:0 34px}
 body[data-skin="nocturne-rose"] .workspace{gap:24px;margin-top:20px}
-body[data-skin="nocturne-rose"] .sidebar{top:94px;padding:12px 9px;border-radius:30px;box-shadow:0 18px 40px rgba(144,73,106,.16)}
+body[data-skin="nocturne-rose"]:not([data-nav-style="arc"]):not([data-nav-style="orb"]) .sidebar{padding:12px 9px;border-radius:30px;box-shadow:0 18px 40px rgba(144,73,106,.16)}
 body[data-skin="nocturne-rose"] section{border-radius:28px;box-shadow:0 18px 42px rgba(144,73,106,.14)}
+/* 让背景山景透出来：内容面板改成轻雾玻璃，去掉自身装饰层 */
+body[data-skin="nocturne-rose"]:not([data-nav-style="arc"]):not([data-nav-style="orb"]) .sidebar,
+body[data-skin="nocturne-rose"] section{background:rgba(255,248,251,.32)!important;backdrop-filter:blur(6px) saturate(1.2)!important;-webkit-backdrop-filter:blur(6px) saturate(1.2)!important;border-color:rgba(255,255,255,.35)!important;box-shadow:0 12px 32px rgba(144,73,106,.10)!important}
+body[data-skin="nocturne-rose"] .sidebar::before,
+body[data-skin="nocturne-rose"] section::before,
+body[data-skin="nocturne-rose"] .sidebar::after,
+body[data-skin="nocturne-rose"] section::after{display:none!important}
+body[data-skin="nocturne-rose"] header{background:rgba(255,248,251,.28)!important;backdrop-filter:blur(6px)!important;-webkit-backdrop-filter:blur(6px)!important;border-color:rgba(255,255,255,.25)!important;box-shadow:0 4px 16px rgba(144,73,106,.08)!important}
 body[data-skin="nocturne-rose"] .section-head{padding-bottom:11px;border-bottom:1px solid var(--line)}
 body[data-skin="nocturne-rose"] .icon-grid{gap:9px}
 body[data-skin="nocturne-rose"] .icon-card{min-height:104px;border-radius:20px}
 body[data-skin="nocturne-rose"] .icon-card:hover,.icon-card:focus{box-shadow:0 10px 24px rgba(172,83,119,.14)}
 body[data-skin="nocturne-rose"] .item-icon{width:46px;height:46px;border-radius:16px;box-shadow:inset 0 1px 0 rgba(255,255,255,.76)}
 body[data-skin="nocturne-rose"] .brand-mark{border-radius:50%;box-shadow:0 9px 22px rgba(192,75,116,.28),inset 0 1px 0 rgba(255,255,255,.38)}
-body[data-skin="nocturne-rose"] .nav-link{border-radius:18px}
-body[data-skin="nocturne-rose"] .nav-add{border-radius:18px}
+body[data-skin="nocturne-rose"]:not([data-nav-style="arc"]):not([data-nav-style="orb"]) .nav-link{border-radius:18px}
+body[data-skin="nocturne-rose"]:not([data-nav-style="arc"]):not([data-nav-style="orb"]) .nav-add{border-radius:18px}
 body[data-skin="nocturne-rose"] .bar-btn{box-shadow:0 4px 10px rgba(171,92,119,.08)}
 
 /* 紧凑侧栏（M4-PREF 的「侧栏」开关）：只留图标，宽度收到 68px。
@@ -296,7 +460,7 @@ body[data-skin="nocturne-rose"] .bar-btn{box-shadow:0 4px 10px rgba(171,92,119,.
 .section-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:13px}
 .section-note,.empty,.card-meta,.meta{font-size:12px;color:var(--muted)}
 section{padding:20px}
-.icon-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(106px,1fr));gap:12px;min-height:50px}
+.icon-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:12px;min-height:50px}
 .icon-card{position:relative;display:flex;min-height:96px;align-items:center;justify-content:center;flex-direction:column;gap:4px;padding:12px 6px 10px;background:transparent;color:var(--ink);border:1px solid transparent;border-radius:var(--radius-sm);text-align:center;cursor:grab;user-select:none}
 .icon-card:hover,.icon-card:focus{background:var(--paper-hover);transform:translateY(-1px);filter:none;outline:none}
 .item-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;font-size:20px;font-weight:700;color:var(--on-brand);background:var(--brandwash);overflow:hidden}
@@ -323,24 +487,36 @@ section{padding:20px}
 .modal{position:fixed;z-index:10;inset:0;display:grid;place-items:center;padding:20px;background:var(--scrim);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:m4fade .14s ease}
 @keyframes m4fade{from{opacity:0}to{opacity:1}}
 @keyframes m4rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-.dialog{display:flex;flex-direction:column;width:min(512px,100%);max-height:calc(100vh - 40px);background:var(--paper-solid);border:1px solid var(--panel-border);border-radius:var(--radius-lg);box-shadow:var(--sh-float);overflow:hidden;animation:m4rise .17s cubic-bezier(.2,.8,.3,1)}
+.dialog{position:relative;display:flex;flex-direction:column;width:min(512px,100%);max-height:calc(100vh - 40px);background:var(--paper-solid);border:1px solid var(--panel-border);border-radius:var(--radius-lg);box-shadow:var(--sh-float);overflow:hidden;animation:m4rise .17s cubic-bezier(.2,.8,.3,1)}
 .dialog.wide{width:min(760px,100%)}
 .dialog.narrow{width:min(420px,100%)}
 .dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:17px 18px 13px;border-bottom:1px solid var(--line)}
 .dialog-head h2{font-size:15.5px}
 .dialog-head .hint{margin:3px 0 0;font-size:12px;color:var(--muted)}
-.dialog-body{padding:15px 18px;overflow:auto;display:grid;gap:14px}
+.pkg-panel-close{position:absolute;top:10px;right:12px;z-index:1;padding:3px 9px;background:var(--soft);color:var(--soft-ink);font-size:19px;line-height:1.2;border-radius:var(--radius-xs);border:none;cursor:pointer}
+/* min-height:0 + grid-auto-rows:min-content 是「窗口变矮时内容被压扁」的修复：
+   .dialog-body 既是 .dialog 的 flex 子项、又是自己的滚动容器，此时它的
+   min-height:auto 按 0 算，会被压到内容高度以下；默认的 auto 网格行跟着一起
+   塌陷——区块只剩标题那么高、里面的内容溢出到下一个区块上、又被 .dialog 的
+   overflow:hidden 裁掉，而 scrollHeight === clientHeight 让滚动条永远不出现。
+   行高锁定 min-content 后，区块恢复自然高度，滚动条正常出现。详见 app-ui.md 5.7。 */
+.dialog-body{padding:15px 18px;overflow:auto;display:grid;gap:14px;min-height:0;grid-auto-rows:min-content;overscroll-behavior:contain}
 .dialog-foot{display:flex;align-items:center;gap:12px;padding:12px 18px;border-top:1px solid var(--line);background:var(--paper-hover)}
 .icon-button{padding:3px 9px;background:var(--soft);color:var(--soft-ink);font-size:19px;line-height:1.2;border-radius:var(--radius-xs)}
 .foot-actions{display:flex;gap:8px;flex:none;margin-left:auto}
 .field{display:grid;gap:5px}
 .field > .tip,.field-note{margin:0;font-size:11.5px;color:var(--muted)}
+/* 分段控件默认带 margin:0 18px（顶栏里那样用）；塞进 .field / 设置面板时由外层 grid 管间距。 */
+.field > .segmented{margin:0}
 /* .bad 修饰符：不要在 JS 里写 style="color:..."，桌面端 CSP 会拦掉内联 style 属性。 */
 .tip.bad{color:var(--danger)}
 .notice{min-height:18px;margin:0;font-size:12px;color:var(--ok);flex:1}
 .notice.bad{color:var(--danger)}
 /* 归类区块比通用 dialog-body 再松一点 */
 #assignBlock{gap:12px}
+/* 新增内容时的分类选择器在 dialog-body 外，单独补齐与表单正文一致的左右留白，
+   避免控件贴着弹窗边缘显得拥挤。 */
+#createCategoryBlock{padding:15px 18px 0}
 .row2{display:grid;grid-template-columns:1fr 92px;gap:10px}
 .row-input{display:flex;gap:8px}
 .row-input input{flex:1}
@@ -393,7 +569,19 @@ details.more .more-body{display:grid;gap:11px;padding:12px}
 .kind-card span{font-size:11px;color:var(--muted);line-height:1.4}
 
 /* 图标选择器（新建分类、归类时挑分类图标） */
-.icon-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:6px;padding:8px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);background:var(--paper-solid);max-height:172px;overflow:auto}
+/* 图标选择器（新建分类、归类、设置面板的逐分类弹层都用它）
+   结构：一个分类 = 一个 .icon-group = .icon-row-label（组名 + 说明，**在上**）+ .icon-row（图标排）。
+   ⚠️ 组名必须在图标**上面**：早先写成「图标排 + 组名」交替，标题就跑到它那组图标的下方，
+   视觉上落到了下一组头上（实测把「密码库」的标题压在了「通用」那 28 枚的上面）。
+   包一层 .icon-group 还顺带解决了「空组连标题一起隐藏」——用 .icon-group:has() 一条规则搞定，
+   不必让 JS 去成对增删两个兄弟节点。:has() 在桌面端的 WebView2 与主流浏览器都已支持。 */
+.icon-pick{display:grid;grid-template-columns:1fr;gap:9px;padding:8px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);background:var(--paper-solid);max-height:250px;overflow:auto}
+.icon-group{display:grid;gap:5px}
+.icon-group+.icon-group{padding-top:9px;border-top:1px solid var(--line)}
+.icon-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:6px}
+.icon-row-label{display:flex;align-items:baseline;gap:7px;padding:0 2px}
+.icon-row-label b{font-size:11.5px;font-weight:700;color:var(--soft-ink)}
+.icon-row-label span{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .icon-pick button{display:grid;place-items:center;height:34px;padding:0;border-radius:9px;background:transparent;color:var(--muted);border:1px solid transparent}
 .icon-pick button svg{width:18px;height:18px}
 .icon-pick button:hover{background:var(--brandwash);color:var(--brand-ink);filter:none}
@@ -461,6 +649,7 @@ input[type=color]{width:100%;height:34px;padding:2px;border:1px solid var(--line
 .set-block .segmented{margin:0}
 .set-block .tip{margin:0;font-size:11.5px;color:var(--muted)}
 .set-sub{display:grid;gap:7px;margin-top:3px}
+.set-sub h3{margin:0;font-size:12.5px;font-weight:700;color:var(--soft-ink)}
 /* 皮肤网格：一格一套皮肤，点一下立即换 */
 .skin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(134px,1fr));gap:10px}
 .skin-card{display:grid;gap:7px;padding:9px;border-radius:var(--radius-sm);background:var(--paper-solid);border:1px solid var(--panel-border);color:var(--ink);text-align:left;font-weight:600}
@@ -502,13 +691,47 @@ body.dragging-active .icon-card.drag-ghost{position:fixed;z-index:60;margin:0;po
   .pick-body{grid-template-columns:1fr}
   .pick-detail{border-top:1px solid var(--line);max-height:30vh}
   .pick-list{max-height:34vh;border-right:0}
-  body[data-skin="nocturne-rose"] header{width:calc(100% - 28px);margin:10px auto 0;border-radius:0 0 24px 24px}
+  body[data-bar-shape="float"] header{width:calc(100% - 28px);margin:10px auto 0;border-radius:18px}
+  body[data-bar-shape="auto"][data-skin="nocturne-rose"] header{width:calc(100% - 28px);margin:10px auto 0;border-radius:0 0 24px 24px}
   body[data-skin="nocturne-rose"] main{padding:0 14px}
-  body[data-skin="nocturne-rose"]::after{inset:70px 8px 8px;border-radius:28px}
+  /* 窄屏下柱廊淡出，给内容留更多空间 */
+  body[data-skin="nocturne-rose"]::after{opacity:.25}
 }
+/* ---------- 合并包 + 多选（M4 新增） ----------
+   颜色一律走皮肤变量；「多选选中」与「拖拽合并目标」是两种不同的状态，
+   前者是右上角一枚实心圆点，后者是虚线圈 + 底色，不会同时出现。 */
+body.multi-select .icon-card{cursor:pointer}
+body.multi-select .icon-card:hover{background:var(--paper-hover);transform:none}
+.icon-card.picked{border-color:var(--brand);background:var(--brandwash)}
+.icon-card.picked::after{content:'';position:absolute;top:5px;right:5px;width:16px;height:16px;border-radius:50%;background:var(--brand);box-shadow:inset 0 0 0 1.5px var(--paper-solid)}
+.icon-card.merge-target{border-color:var(--brand);border-style:dashed;background:var(--brandwash)}
+body.dragging-active .icon-card.merge-target{border-color:var(--brand);border-style:dashed;background:var(--brandwash);transform:none}
+body.multi-select #multiSelect{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}
+/* 合并包的文件夹卡：2×2 迷你图标 + 名称，跟普通卡同尺寸同手感 */
+.pkg-card{cursor:pointer}
+.pkg-stack{display:flex;flex-wrap:wrap;gap:3px;padding:3px;align-content:center;justify-content:center;background:var(--brandwash)}
+.pkg-stack .pkg-cell{display:grid;place-items:center;width:16px;height:16px;border-radius:4px;overflow:hidden;font-size:9px;font-weight:700;line-height:1}
+.pkg-stack .pkg-cell img{width:100%;height:100%;object-fit:contain}
+.pkg-stack .pkg-cell.letter{color:#fff}
+/* 多选模式的底部操作条 */
+.bulk-bar{position:fixed;z-index:30;left:50%;bottom:22px;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:999px;background:var(--paper-solid);border:1px solid var(--panel-border);box-shadow:var(--sh-float)}
+.bulk-bar[hidden]{display:none}
+.bulk-count{font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap}
+.bulk-hint{font-size:11.5px;color:var(--muted);white-space:nowrap}
+@media(max-width:760px){
+  .bulk-bar{flex-wrap:wrap;justify-content:center;max-width:calc(100% - 28px);border-radius:var(--radius-lg)}
+  .bulk-hint{white-space:normal}
+}
+/* ── per-cat 预览最终覆盖 ──────────────────────────────────────────────
+   设置面板里「每个分类的图标样式」那四格必须**并排可比**：几何归一（26×26 / 17px），
+   只保留底色与圆角差异。放在 <style> 末尾是因为分档规则用的是
+   body[data-icon-style="x"] .nav-icon（特异性 0,2,1），与这里的
+   .per-cat-row .segmented button .nav-icon（0,3,1）同为三类选择器时才靠顺序取胜。 */
+.per-cat-row .segmented button .nav-icon{width:26px;height:26px}
+.per-cat-row .segmented button .nav-icon svg{width:17px;height:17px}
 </style></head><body>
-<header><div class="brand" data-tauri-drag-region><span class="brand-mark" role="button" tabindex="0" title="点击更换头像 / Logo" aria-label="更换头像或 Logo"></span><h1 data-tauri-drag-region>个人工作台</h1></div><div class="drag-space" data-tauri-drag-region></div><div class="actions" id="barActions"><div class="skin-wrap"><button class="bar-btn icon-only" id="skinToggle" data-icon="palette" data-tip="外观皮肤" aria-haspopup="true"><span class="bar-ic"></span><span class="bar-label">皮肤</span></button><div class="skin-menu" id="skinMenu" hidden></div></div><button class="bar-btn icon-only" id="connect" data-icon="refresh" data-tip="重新连接"><span class="bar-ic"></span><span class="bar-label">重新连接</span></button><button class="bar-btn icon-only" id="scan" data-icon="sync" data-tip="同步文件夹"><span class="bar-ic"></span><span class="bar-label">同步文件夹</span></button><button class="bar-btn icon-only primary" id="openAdd" data-icon="plus" data-tip="新增内容"><span class="bar-ic"></span><span class="bar-label">新增</span></button><button class="bar-btn icon-only" id="openSettings" data-icon="sliders" data-tip="设置"><span class="bar-ic"></span><span class="bar-label">设置</span></button></div><div class="win-buttons"><button type="button" class="win-btn" id="winMin" title="最小化" aria-label="最小化" data-icon="min"></button><button type="button" class="win-btn" id="winMax" title="最大化 / 还原" aria-label="最大化或还原" data-icon="max"></button><button type="button" class="win-btn close" id="winClose" title="关闭" aria-label="关闭窗口" data-icon="close"></button></div></header>
-<main><div class="workspace"><aside class="sidebar"><div class="brand-mark" role="button" tabindex="0" title="点击更换头像 / Logo" aria-label="更换头像或 Logo"></div><div class="nav-title">内容分类</div><nav id="nav" class="nav"></nav><div class="nav-sep"></div><button class="nav-add" id="openNewCategory" data-icon="folder-plus" data-tip="新建分类"><span class="nav-icon"></span><span class="nav-text">新建分类</span></button><button class="nav-add" type="button" data-action="toggle-nav" data-icon="panel-left" data-tip="收起 / 展开侧栏文字"><span class="nav-icon"></span><span class="nav-text">收起文字</span></button><button class="nav-add" type="button" data-action="settings" data-icon="sliders" data-tip="设置"><span class="nav-icon"></span><span class="nav-text">设置</span></button></aside><div class="grid" id="content"></div></div></main>
+<header><div class="brand" data-tauri-drag-region><span class="brand-mark" role="button" tabindex="0" title="点击更换头像 / Logo" aria-label="更换头像或 Logo"></span><h1 data-tauri-drag-region>个人工作台</h1></div><div class="drag-space" data-tauri-drag-region></div><div class="actions" id="barActions"><div class="skin-wrap"><button class="bar-btn icon-only" id="skinToggle" data-icon="palette" data-tip="外观皮肤" aria-haspopup="true"><span class="bar-ic"></span><span class="bar-label">皮肤</span></button><div class="skin-menu" id="skinMenu" hidden></div></div><button class="bar-btn icon-only primary" id="openAdd" data-icon="plus" data-tip="新增内容"><span class="bar-ic"></span><span class="bar-label">新增</span></button><button class="bar-btn icon-only" id="multiSelect" data-icon="layers" data-tip="多选合并"><span class="bar-ic"></span><span class="bar-label">多选</span></button><button class="bar-btn icon-only" id="openSettings" data-icon="sliders" data-tip="设置"><span class="bar-ic"></span><span class="bar-label">设置</span></button></div><div class="win-buttons"><button type="button" class="win-btn" id="winMin" title="最小化" aria-label="最小化" data-icon="min"></button><button type="button" class="win-btn" id="winMax" title="最大化 / 还原" aria-label="最大化或还原" data-icon="max"></button><button type="button" class="win-btn close" id="winClose" title="关闭" aria-label="关闭窗口" data-icon="close"></button></div></header>
+<main><div class="workspace"><aside class="sidebar"><div class="brand-mark" role="button" tabindex="0" title="点击更换头像 / Logo" aria-label="更换头像或 Logo"></div><div class="nav-title">内容分类</div><nav id="nav" class="nav"></nav><div class="nav-sep"></div><button class="nav-add" id="openNewCategory" data-icon="folder-plus" data-tip="新建分类"><span class="nav-icon"></span><span class="nav-text">新建分类</span></button><button class="nav-add" type="button" data-action="settings" data-icon="sliders" data-tip="设置"><span class="nav-icon"></span><span class="nav-text">设置</span></button></aside><div class="grid" id="content"></div></div></main>
 
 <!-- ============ 编辑器：一条内容只需要填它所属类型该填的东西 ============ -->
 <div class="modal" id="editor" hidden><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
@@ -524,6 +747,7 @@ body.dragging-active .icon-card.drag-ghost{position:fixed;z-index:60;margin:0;po
       <div class="kind-cards" id="assignNewKind"></div>
     </div>
   </div>
+  <div class="field" id="createCategoryBlock" hidden><label for="createCategory">添加到哪个分类</label><select id="createCategory"></select></div>
   <div class="segmented" id="kindSwitch" role="tablist"></div>
   <div class="dialog-body">
     <div class="hero">
@@ -539,7 +763,7 @@ body.dragging-active .icon-card.drag-ghost{position:fixed;z-index:60;margin:0;po
 
     <!-- 网址 -->
     <div class="kfields" data-kind="link">
-      <div class="field"><label for="url">网址</label><input id="url" type="text" placeholder="https://example.com"><p class="tip">只填域名也行，保存时会自动补上 https://。图标用域名首字母，想换可以在卡片上右键</p></div>
+      <div class="field"><label for="url">网址</label><input id="url" type="text" placeholder="https://example.com"><p class="tip">只填域名也行，保存时会自动补上 https://。离开输入框或保存时会自动读取网站图标；读取失败时仍使用默认图标。</p></div>
       <div class="field"><label for="browserPick">用哪个浏览器打开</label><select id="browserPick"></select><div class="row-input" id="browserCustom" hidden><input id="browserPath" placeholder="C:\Program Files\某浏览器\browser.exe"></div><p class="tip" id="browserTip">默认交给系统默认浏览器；这里选过之后只对这条网址生效。</p></div>
     </div>
 
@@ -577,10 +801,30 @@ body.dragging-active .icon-card.drag-ghost{position:fixed;z-index:60;margin:0;po
   <div class="dialog-body">
     <div class="field"><label for="categoryName">分类名称</label><input id="categoryName" placeholder="例如：游戏" maxlength="24"></div>
     <div class="field"><label>图标</label><div class="icon-pick" id="categorySymbolPick"></div></div>
+    <div class="field"><label>图标样式</label><div class="segmented" id="categoryStyleSeg"></div></div>
     <div class="field"><label>这个分类主要装什么</label><div class="kind-cards" id="categoryKinds"></div></div>
   </div>
   <div class="dialog-foot"><p class="notice" id="categoryNotice"></p><div class="foot-actions"><button class="secondary" id="categoryCancel">取消</button><button id="categorySave">创建分类</button></div></div>
 </div></div>
+
+<!-- ============ 合并包：给包起个名字（多选合并走这里；拖拽合并直接建，不弹） ============ -->
+<div class="modal" id="pkgModal" hidden><div class="dialog narrow" role="dialog" aria-modal="true" aria-labelledby="pkgTitle">
+  <div class="dialog-head"><div><h2 id="pkgTitle">合并成一个包</h2><p class="hint" id="pkgHint"></p></div><button class="icon-button" id="pkgClose" aria-label="关闭">×</button></div>
+  <div class="dialog-body">
+    <div class="field"><label for="pkgName">包名称</label><input id="pkgName" placeholder="例如：游戏" maxlength="24"><p class="tip">名字随时能改：在包卡片的右键菜单里、或者点开包之后点「重命名」。</p></div>
+  </div>
+  <div class="dialog-foot"><p class="notice" id="pkgNotice"></p><div class="foot-actions"><button class="secondary" id="pkgCancel">取消</button><button id="pkgSave">创建包</button></div></div>
+</div></div>
+
+<!-- ============ 合并包：展开看里面装了什么 ============ -->
+<div class="modal" id="pkgPanel" hidden><div class="dialog" role="dialog" aria-modal="true">
+  <button class="icon-button pkg-panel-close" id="pkgPanelClose" aria-label="关闭">×</button>
+  <div class="dialog-body"><div class="icon-grid" id="pkgGrid"></div></div>
+  <div class="dialog-foot"><p class="notice" id="pkgPanelNotice"></p></div>
+</div></div>
+
+<!-- ============ 多选模式的底部操作条 ============ -->
+<div class="bulk-bar" id="bulkBar" hidden><span class="bulk-count" id="bulkCount"></span><span class="bulk-hint" id="bulkHint"></span><button class="secondary" id="bulkMerge" type="button" disabled>合并成一个包</button><button class="secondary" id="bulkClear" type="button">退出多选</button></div>
 
 <div class="context-menu" id="contextMenu" hidden></div>
 <input id="iconFile" type="file" accept="image/*" hidden>
@@ -635,39 +879,65 @@ body.dragging-active .icon-card.drag-ghost{position:fixed;z-index:60;margin:0;po
       <h3>侧边栏</h3>
       <div class="segmented" id="navStyleSeg">
         <button type="button" data-navstyle="card">信息卡片</button>
-        <button type="button" data-navstyle="pill">柔和胶囊</button>
         <button type="button" data-navstyle="rail">悬浮导轨</button>
+        <button type="button" data-navstyle="arc">弧形导航</button>
+        <button type="button" data-navstyle="orb">圆形胶囊</button>
       </div>
       <div class="segmented" id="navModeSeg">
         <button type="button" data-nav="expanded">显示图标 + 文字</button>
         <button type="button" data-nav="compact">只显示图标</button>
       </div>
       <p class="tip" id="navModeTip"></p>
+      <div class="set-sub" id="orbOpacityControl">
+        <h3>圆形按钮底色</h3>
+        <div class="skin-row"><input id="orbOpacity" type="range" min="20" max="100" step="1" value="100" aria-label="圆形按钮底色不透明度"><output id="orbOpacityOut">100%</output></div>
+        <p class="tip">数值越低，圆形底色越透明；图标与文字保持清晰。仅在「圆形胶囊」侧边栏版式生效。</p>
+      </div>
     </section>
     <section class="set-block">
-      <h3>顶栏按钮</h3>
-      <div class="segmented" id="barLabelSeg">
-        <button type="button" data-barlabel="off">只显示图标</button>
-        <button type="button" data-barlabel="on">图标 + 文字</button>
+      <h3>顶栏</h3>
+      <div class="set-sub">
+        <h3>按钮文字</h3>
+        <div class="segmented" id="barLabelSeg">
+          <button type="button" data-barlabel="off">只显示图标</button>
+          <button type="button" data-barlabel="on">图标 + 文字</button>
+        </div>
       </div>
       <div class="set-sub">
-        <h3>顶栏样式</h3>
+        <h3>按钮排列</h3>
         <div class="segmented" id="barStyleSeg">
           <button type="button" data-barstyle="circle">独立圆形按钮</button>
           <button type="button" data-barstyle="capsule">收进一枚胶囊</button>
         </div>
       </div>
+      <div class="set-sub">
+        <h3>顶栏形式</h3>
+        <div class="segmented" id="barShapeSeg">
+          <button type="button" data-barshape="auto">跟随皮肤</button>
+          <button type="button" data-barshape="bar">吸顶通栏</button>
+          <button type="button" data-barshape="float">悬浮浮岛</button>
+        </div>
+        <p class="tip" id="barShapeTip"></p>
+      </div>
       <p class="tip">隐藏文字后，鼠标停上去会浮出文字说明。</p>
     </section>
     <section class="set-block">
       <h3>图标风格</h3>
+      <!-- 四档只画图标、不写名字（打开面板时由 buildIconStyleSeg 填图标），
+           名字走悬停浮层：并排四条风格名会把这一块撑得很乱。 -->
       <div class="segmented" id="iconStyleSeg">
-        <button type="button" data-iconstyle="plain">极简线稿</button>
-        <button type="button" data-iconstyle="tile">圆角方块</button>
-        <button type="button" data-iconstyle="abstract">抽象符号</button>
-        <button type="button" data-iconstyle="readable">直观重绘</button>
+        <button type="button" data-iconstyle="plain" data-tip="极简线稿" aria-label="极简线稿"></button>
+        <button type="button" data-iconstyle="tile" data-tip="圆角方块" aria-label="圆角方块"></button>
+        <button type="button" data-iconstyle="abstract" data-tip="抽象符号" aria-label="抽象符号"></button>
+        <button type="button" data-iconstyle="readable" data-tip="直观重绘" aria-label="直观重绘"></button>
       </div>
       <div class="icon-demo" id="iconDemo"></div>
+      <p class="tip">四档只留图标：鼠标停在上面会浮出风格名字。</p>
+    </section>
+    <section class="set-block">
+      <h3>每个分类的图标样式</h3>
+      <p class="tip">一行一个分类，<b>图标和样式都能单独改</b>：点左边那枚图标挑图形（共 60 枚），右边四档挑风格。四档只画图标，鼠标停上去浮出风格名。互不影响，「跟随全局」就是不单独设。内置分类也能改。</p>
+      <div class="per-cat" id="perCategoryStyles"></div>
     </section>
     <section class="set-block">
       <h3>数据与连接</h3>
@@ -690,8 +960,8 @@ body.dragging-active .icon-card.drag-ghost{position:fixed;z-index:60;margin:0;po
      类型由 <div class="kfields" data-kind="xxx"> 承载，切换时只改 hidden。
    - 所有后端调用必须经过 request()，新增路径要同时在 IPC_MAP 里登记，
      否则桌面版会静默失败（契约见 docs/interfaces/tauri-ipc.md）。
-   - 图标一律先经 shrinkImage() 归一成 128px PNG 再保存：图标只在 42px 的
-     格子里显示，128 足够，且能把 catalog.json 控制在小体积。
+   - 普通图标经 shrinkImage() 归一成 128px PNG；自动读取的网站图标保留至 256px，
+     以免高清源图在后续显示或缩放时损失细节。
    ========================================================================== */
 'use strict';
 const API='http://127.0.0.1:8765/api';
@@ -759,6 +1029,40 @@ const ICONS={
   map:'<path d="M9 4.4L3.5 6.9v13L9 17.4l6 2.5 5.5-2.5v-13L15 6.9z"/><path d="M9 4.4v13M15 6.9v13"/>',
   bulb:'<path d="M9.6 16.4a5.4 5.4 0 1 1 4.8 0v1.2a1.6 1.6 0 0 1-1.6 1.6h-1.6a1.6 1.6 0 0 1-1.6-1.6z"/><path d="M10.2 20.6h3.6"/>',
   database:'<ellipse cx="12" cy="6.4" rx="7.5" ry="3"/><path d="M4.5 6.4v11.2c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6.4"/><path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3"/>',
+  /* 下面这批是「按形态重建」的分类图标：轮廓互相不撞，专门给内置分类用
+     （映射见 LABEL_ICONS 最前面那七条；内置分类的 symbol 是旧字符，认不得）。 */
+  stack:'<path d="M12 3.8L20.6 8 12 12.2 3.4 8z"/><path d="M3.4 12L12 16.2 20.6 12"/><path d="M3.4 16L12 20.2 20.6 16"/>',
+  flame:'<path d="M12 3.4c.6 3.4-1.4 4.8-2.9 6.4C7.6 11.4 6.6 13 6.6 15a5.4 5.4 0 0 0 10.8 0c0-2.4-1.3-4.1-2.8-5.6"/><path d="M12 20.2a2.6 2.6 0 0 0 2.6-2.6c0-1.5-1.2-2.3-1.9-3.6-.8 1.1-3.3 2.1-3.3 3.7a2.6 2.6 0 0 0 2.6 2.5z"/>',
+  pin:'<path d="M12 21c3.9-4.4 5.8-7.4 5.8-10a5.8 5.8 0 1 0-11.6 0c0 2.6 1.9 5.6 5.8 10z"/><circle cx="12" cy="10.8" r="2.2"/>',
+  puzzle:'<path d="M9.4 3.6h4.2v1.8a2 2 0 1 0 4 0V3.6h2.8a1 1 0 0 1 1 1v3.2h-1.8a2 2 0 1 0 0 4h1.8v6.6a1 1 0 0 1-1 1h-4.6v-1.8a2 2 0 1 0-4 0v1.8H4.6a1 1 0 0 1-1-1v-4.6h1.8a2 2 0 1 0 0-4H3.6V5.6a1 1 0 0 1 1-1h4.8z"/>',
+  'book-open':'<path d="M12 6.6C10 4.8 7 4.2 3.8 4.8v13.4c3.2-.6 6.2 0 8.2 1.8 2-1.8 5-2.4 8.2-1.8V4.8c-3.2-.6-6.2 0-8.2 1.8z"/><path d="M12 6.6V20"/>',
+  'folder-question':'<path d="M3.6 6.4h5.2l2 2.2h9.6v10.4H3.6z"/><path d="M10.6 12.2a1.5 1.5 0 1 1 1.5 1.7v.9"/><circle cx="12.1" cy="16.7" r=".9" fill="currentColor" stroke="none"/>',
+  keyhole:'<rect x="3.6" y="3.6" width="16.8" height="16.8" rx="3.2"/><circle cx="12" cy="10.6" r="2.2"/><path d="M12 12.8 10.8 17h2.4z" fill="currentColor" stroke="none"/>',
+  /* ── 形态备选（与 assets/icons/category-icon-forms-preview.html 的 32 个方案一一对应）──
+     路径照搬预览页，只把预览里的 class="dot" 换成库内写法。
+     分类的默认图标不从这里选（走 LABEL_ICONS 关键词），这批是给图标选择器挑的备选形态。 */
+  'grid-board':'<rect x="3.4" y="3.4" width="17.2" height="17.2" rx="3"/><path d="M12 3.4v17.2M3.4 12h17.2"/>',
+  drawer:'<rect x="4" y="3.6" width="16" height="16.8" rx="2.4"/><path d="M4 9.2h16M4 14.8h16"/><path d="M10 6.4h4M10 12h4M10 17.6h4"/>',
+  bundle:'<rect x="3.4" y="3.4" width="12.6" height="12.6" rx="2.4"/><path d="M8.6 19.4h10.8a1.2 1.2 0 0 0 1.2-1.2V8.6"/><path d="M18.4 12.4v7h-7"/>',
+  bookmark:'<path d="M6.6 3.6h10.8v17.2L12 16.4l-5.4 4.4z"/><path d="M6.6 3.6A.4.4 0 0 1 7 3.2h10a.4.4 0 0 1 .4.4"/>',
+  rise:'<path d="M3.6 20.4h16.8"/><rect x="4.6" y="13.6" width="3.6" height="6.8" rx="1"/><rect x="10.2" y="9.4" width="3.6" height="11" rx="1"/><rect x="15.8" y="5.2" width="3.6" height="15.2" rx="1"/>',
+  brackets:'<path d="m9 7.6-4.4 4.4L9 16.4"/><path d="m15 7.6 4.4 4.4L15 16.4"/>',
+  scroll:'<path d="M5.4 6.4h12.2a2.4 2.4 0 0 1 0 4.8H6.4"/><path d="M6.4 11.2h12.2"/><path d="M8.4 3.8h8.2a2.6 2.6 0 0 1 2.6 2.6v9.8a2.4 2.4 0 0 1-2.4 2.4H7.6"/><path d="M5.4 6.4a2.4 2.4 0 0 0 0 4.8"/><path d="M8 15.6h6.2"/>',
+  'file-gear':'<path d="M5.6 3.6h7.6l4.2 4.2v6.4"/><path d="M13.2 3.6v4.2h4.2"/><circle cx="15.8" cy="16.6" r="3.4"/><path d="M15.8 11.8v1.4M15.8 20v1.4M11 16.6h1.4M19.2 16.6h1.4"/>',
+  chain:'<path d="M10.2 13.8 13.8 10.2"/><path d="M8.6 8.2 6.8 10a3.4 3.4 0 0 0 4.8 4.8l1.8-1.8"/><path d="M15.4 15.8 17.2 14a3.4 3.4 0 0 0-4.8-4.8l-1.8 1.8"/>',
+  external:'<path d="M18.6 13.4v5a2 2 0 0 1-2 2H5.6a2 2 0 0 1-2-2V7.4a2 2 0 0 1 2-2h5"/><path d="M14.4 3.6h6v6"/><path d="M20.4 3.6 11.8 12.2"/>',
+  rocket:'<path d="M12 2.8c3.4 2.6 5 6.2 5 10.4l-2.2 2.6H9.2L7 13.2c0-4.2 1.6-7.8 5-10.4z"/><circle cx="12" cy="10" r="1.8"/><path d="M9.2 15.8 7 19.6l3-1M14.8 15.8l2.2 3.8-3-1M12 17v4"/>',
+  case:'<rect x="3.4" y="7.4" width="17.2" height="12" rx="2.4"/><path d="M8.6 7.4V5.6a1.8 1.8 0 0 1 1.8-1.8h3.2a1.8 1.8 0 0 1 1.8 1.8v1.8"/><path d="M3.4 13.4h17.2"/>',
+  'page-fold':'<path d="M6 3.6h7l5 5v11.8H6z"/><path d="M13 3.6V8.6h5"/><path d="M9 12.6h6M9 15.6h6M9 18.2h3.4"/>',
+  'page-stack':'<path d="M8.4 6.6h6.4l4.4 4.4v9.4H8.4z"/><path d="M14.8 6.6v4.4h4.4"/><path d="M5.6 3.4h6.2l1.4 1.4"/><path d="M5.6 3.4v11.4"/><path d="M3.4 6.2v14.2h11.6"/>',
+  'book-closed':'<path d="M12 6.6C10 4.8 7 4.2 3.8 4.8v13.4c3.2-.6 6.2 0 8.2 1.8 2-1.8 5-2.4 8.2-1.8V4.8c-3.2-.6-6.2 0-8.2 1.8z"/><path d="M12 6.6V20"/>',
+  clipboard:'<rect x="5" y="4.6" width="14" height="15.8" rx="2.2"/><path d="M9 4.6V3.4h6v1.2"/><path d="M9 9.4h6M9 12.6h6M9 15.8h3.4"/>',
+  tray:'<path d="M3.6 13.4 6.2 5.6h11.6l2.6 7.8v5.4H3.6z"/><path d="M3.6 13.4h4.6l.9 2.4h5.8l.9-2.4h4.6"/>',
+  dashed:'<path d="M3.8 7.4V4.6h3.4M16.8 4.6h3.4v2.8M20.2 16.6v2.8h-3.4M7.2 19.4H3.8v-2.8"/><path d="M12 9.4v5.2M9.4 12h5.2"/>',
+  'file-spark':'<path d="M5.6 3.6h7.6l4.6 4.6v12.2H5.6z"/><path d="M13.2 3.6v4.6h4.6"/><path d="m16.4 12.4.9 1.8 2 .3-1.45 1.4.34 2-1.79-.94-1.79.94.34-2-1.45-1.4 2-.3z"/>',
+  key:'<circle cx="7.4" cy="7.4" r="3.8"/><path d="m10.2 10.2 9.4 9.4"/><path d="m16.4 16.4 1.8-1.8M14.2 14.2l1.8-1.8"/>',
+  shield:'<path d="M12 3.4 19.4 6.2v6c0 4.2-3 7.2-7.4 8.8-4.4-1.6-7.4-4.6-7.4-8.8v-6z"/><path d="M12 3.4v17.6"/>',
+  layers:'<path d="M12 3.6l8.4 4.2-8.4 4.2-8.4-4.2z"/><path d="M4.6 12.3l7.4 3.7 7.4-3.7"/><path d="M4.6 16.4l7.4 3.7 7.4-3.7"/>',
   spark:'<path d="M11 3.4l1.8 4.7 4.7 1.8-4.7 1.8L11 16.4 9.2 11.7 4.5 9.9l4.7-1.8z"/><path d="M17.6 15.4l.9 2.2 2.2.9-2.2.9-.9 2.2-.9-2.2-2.2-.9 2.2-.9z"/>'
 };
 const ICON_NAMES=Object.keys(ICONS).filter(name=>name!=='spark');
@@ -776,8 +1080,56 @@ const ABSTRACT_ICONS={
   clock:'<circle cx="12" cy="12" r="8.3"/><path d="M12 7.2v5l3.6 2.1"/><path d="M6.7 6.7c3.5 1.2 7.1 1.2 10.6 0"/>',
   archive:'<path d="M4.2 7.5h15.6"/><path d="M6 7.5v10.4c0 1.2.9 2.1 2.1 2.1h7.8c1.2 0 2.1-.9 2.1-2.1V7.5"/><path d="M5.2 4.2h13.6v3.3H5.2z"/><path d="M9.6 12.2c1.6.9 3.2.9 4.8 0"/>',
   home:'<path d="M4.4 11.1L12 4.5l7.6 6.6"/><path d="M6.5 10.4v8.1c0 1 .8 1.7 1.7 1.7h7.6c.9 0 1.7-.7 1.7-1.7v-8.1"/><path d="M9.4 15.2c1.7-1.1 3.5-1.1 5.2 0"/>',
-  spark:'<path d="M11.2 3.3l2 5.5 5.5 2-5.5 2-2 5.5-2-5.5-5.5-2 5.5-2z"/><path d="M18 15.5l.8 2.1 2.1.8-2.1.8-.8 2.1-.8-2.1-2.1-.8 2.1-.8z"/>'
-};
+  spark:'<path d="M11.2 3.3l2 5.5 5.5 2-5.5 2-2 5.5-2-5.5-5.5-2 5.5-2z"/><path d="M18 15.5l.8 2.1 2.1.8-2.1.8-.8 2.1-.8-2.1-2.1-.8 2.1-.8z"/>',
+  /* 形态图标的抽象档：同样的语义，改由纯几何关系表达（同心、对角、弧线）。 */
+  stack:'<circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="4.6"/><path d="M12 3.6v8.4l6 4.2"/>',
+  flame:'<path d="M12 3.4c3.6 4.4 5.6 7.3 5.6 9.8a5.6 5.6 0 0 1-11.2 0c0-1.6.6-3 1.7-4.4"/><path d="M12 9.6c1.4 2 2.2 3.3 2.2 4.4a2.2 2.2 0 0 1-4.4 0c0-1.1.8-2.4 2.2-4.4z"/>',
+  pin:'<path d="M12 20.6 6.4 12a6.6 6.6 0 1 1 11.2 0z"/><circle cx="12" cy="10.6" r="2.2"/><path d="M5.8 8.6h12.4"/>',
+  puzzle:'<rect x="3.4" y="3.4" width="7.8" height="7.8" rx="3.9"/><rect x="12.8" y="12.8" width="7.8" height="7.8" rx="3.9"/><path d="M7.3 3.6v7.4M3.6 7.3h7.4M16.7 12.8v7.8M12.8 16.7h7.8"/>',
+  'book-open':'<path d="M12 5.6v14.8"/><path d="M12 5.6C9.6 4 6.6 3.6 3.6 4.4v12.4c3-.8 6-.4 8.4 1.2"/><path d="M12 5.6c2.4-1.6 5.4-2 8.4-1.2v12.4c-3-.8-6-.4-8.4 1.2"/>',
+  'folder-question':'<path d="M3.6 7.2h5.4l2 2.2h9.4v10H3.6z"/><path d="M12 12.2a1.9 1.9 0 1 1 1.9 2.1v1.1"/><circle cx="12.1" cy="17.1" r=".85" fill="currentColor" stroke="none"/>',
+  keyhole:'<rect x="3.6" y="3.6" width="16.8" height="16.8" rx="8.4"/><circle cx="12" cy="10.8" r="3.2"/><path d="M12 14 10.4 17.6h3.2z" fill="currentColor" stroke="none"/>',
+  link:'<circle cx="9" cy="15" r="4.1"/><circle cx="15" cy="9" r="4.1"/><path d="M13.9 10.1L10.1 13.9"/><circle cx="12" cy="12" r="1.15" fill="currentColor" stroke="none"/>',
+  palette:'<circle cx="12" cy="12" r="8.1"/><path d="M12 3.9v3.7M20.1 12H16.4M12 20.1v-3.7M3.9 12h3.7"/><circle cx="12" cy="5.6" r="1" fill="currentColor" stroke="none"/><circle cx="18.4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="18.4" r="1" fill="currentColor" stroke="none"/><circle cx="5.6" cy="12" r="1" fill="currentColor" stroke="none"/>',
+  sliders:'<path d="M4 7.5h16M4 12h16M4 16.5h16"/><path d="M8.6 5.6L10.5 7.5L8.6 9.4L6.7 7.5z"/><path d="M15.4 10.1L17.3 12L15.4 13.9L13.5 12z"/><path d="M11.8 14.6L13.7 16.5L11.8 18.4L9.9 16.5z"/>',
+  chart:'<path d="M4.6 19.4V4.6M4.6 19.4h14.8"/><path d="M9.4 19.4v-5.2M13.4 19.4V8.6M17.4 19.4v-7.4"/><circle cx="9.4" cy="14.6" r="1" fill="currentColor" stroke="none"/><circle cx="13.4" cy="8.4" r="1" fill="currentColor" stroke="none"/><circle cx="17.4" cy="11.8" r="1" fill="currentColor" stroke="none"/>',
+  cloud:'<path d="M8.2 17.4a4 4 0 0 1 1.6-7.7 5 5 0 0 1 9.4-1.1"/><circle cx="7.8" cy="15" r="2.7" opacity=".25"/><path d="M5.6 19.9h12.8"/>',
+  mail:'<rect x="4.2" y="5.4" width="15.6" height="13.2" rx="3"/><path d="M4.8 8.2L12 14.2l7.2-6"/><path d="M4.8 16.6h4.6"/>',
+  cart:'<path d="M3.4 5h3.1l2.1 11.2h10.9"/><path d="M6.5 8.4h13.9"/><circle cx="9" cy="19.4" r="1.5"/><circle cx="17.6" cy="19.4" r="1.5"/>',
+  heart:'<path d="M12 20L4.8 10.6"/><path d="M4.8 10.6A3.7 3.7 0 0 1 12 8"/><path d="M12 20l7.2-9.4A3.7 3.7 0 0 0 12 8"/>',
+  calendar:'<rect x="4" y="5.4" width="16" height="14.6" rx="3"/><path d="M4 10.4h16"/><path d="M8.6 3.6v3.8M15.4 3.6v3.8"/><circle cx="12" cy="15.4" r="1.5" opacity=".35"/>',
+  map:'<path d="M3.6 6.2L9.2 3.9v14.2l-5.6 2.1z"/><path d="M14.8 5.9L20.4 4v14.1l-5.6 2.1z"/><path d="M9.2 3.9l5.6 2v14.2l-5.6-2"/>',
+  code:'<path d="M8.6 4.6L4.2 12l4.4 7.4"/><path d="M15.4 4.6L19.8 12l-4.4 7.4"/><path d="M12 9.9l2.1 2.1L12 14.1z"/>',
+  game:'<rect x="3" y="6.8" width="18" height="10.6" rx="5.3"/><path d="M7.4 10.4v3.6M5.6 12.2h3.6"/><circle cx="15.6" cy="10.8" r="1.2" fill="currentColor" stroke="none"/><circle cx="18" cy="13.4" r="1.2" fill="currentColor" stroke="none"/>',
+  image:'<circle cx="7.8" cy="7.8" r="1.9" opacity=".85"/><path d="M4 15.6l5.6-5.2 5.2 4.6 5.2-4.4"/><path d="M4 19.6l16-15.2" opacity=".45"/>',
+  music:'<circle cx="6.8" cy="17.4" r="2"/><circle cx="17.6" cy="17.4" r="2"/><path d="M8.8 16.4V6.2L19.6 4.2v11.8"/><path d="M8.8 10.4h10.8" opacity=".45"/>',
+  video:'<path d="M4 7.2h16M4 12h16M4 16.8h16" opacity=".45"/><path d="M10.6 9.4l5 2.6-5 2.6z"/><path d="M5 5L19 19" opacity=".3"/>',
+  'folder-plus':'<path d="M3.4 7.8A2.6 2.6 0 0 1 6 5.2h4.2l2 2.6h5.8a2.6 2.6 0 0 1 2.6 2.6v6.2a2.6 2.6 0 0 1-2.6 2.6H6a2.6 2.6 0 0 1-2.6-2.6z"/><path d="M12 9.6v6.8M8.6 13h6.8"/>',
+  book:'<rect x="4.2" y="4.6" width="15.6" height="7.2" rx="2.2"/><rect x="4.2" y="14.2" width="15.6" height="5.2" rx="2.2"/><path d="M12 12.6v2.4" opacity=".45"/>',
+  'book-closed':'<path d="M6 5.2h12M6 8.6h12M6 12h9.6"/><path d="M5 16.2l7 3.4 7-3.4z"/><circle cx="12" cy="14" r="1" fill="currentColor" stroke="none"/>',
+  database:'<path d="M4.6 6h14.8M6.2 12h11.6M8.4 18h7.2"/><ellipse cx="12" cy="21" rx="4.2" ry="1.5" opacity=".5"/>',
+  bulb:'<circle cx="12" cy="11.6" r="6.6"/><circle cx="12" cy="11.6" r="2.4"/><path d="M12 1.8v2.6M12 18.8v3.4M2.2 11.6h2.6M19.2 11.6h2.6M5.1 4.7l1.9 1.9M16.99 16.59l1.9 1.9M18.9 4.7l-1.9 1.9M7 16.59l-1.9 1.9" opacity=".55"/>',
+  drawer:'<path d="M5.4 5.4h13.2"/><path d="M4.6 12h14.8"/><path d="M5.4 18.6h13.2"/><path d="M7.6 8.7h8.8" opacity=".45"/>',
+  bundle:'<path d="M6.6 6.6h10.8v10.8H6.6z"/><path d="M10.8 6.6 6.6 10.8"/><path d="M13.2 17.4 17.4 13.2"/><path d="M17.6 6.4v5"/><path d="M6.4 17.6h5"/>',
+  bookmark:'<path d="M6.8 5.6 12 11.6l5.2-6"/><path d="M8.4 10.2h7.2" opacity=".45"/><path d="M8.4 14.4h7.2"/><path d="M8.4 18.6h7.2"/>',
+  rise:'<path d="M4.6 18.8h14.8"/><path d="M9 18.8v-5.2"/><path d="M13.6 18.8v-9.4"/><path d="M18.2 18.8v-13"/><path d="M4.8 13.6 19.2 5.4" opacity=".45"/>',
+  brackets:'<path d="M9.4 6.8 4.2 12l5.2 5.2"/><path d="M14.6 6.8 19.8 12l-5.2 5.2"/><path d="M12 4.6v14.8" opacity=".45"/>',
+  scroll:'<rect x="6.4" y="4.4" width="11.2" height="15.2" rx="2.4"/><path d="M9.6 9.4h5.6"/><path d="M9.6 14.8h5.6"/><path d="M4 9.6a2.4 2.4 0 0 1 2.4-2.4"/><path d="M4 14.4a2.4 2.4 0 0 1 2.4 2.4"/>',
+  'file-gear':'<path d="M6.4 4.4h11.2v8.2"/><path d="M6.4 4.4v15.2h11.2"/><path d="M13 4.6 17.4 9" opacity=".45"/><circle cx="16.2" cy="16.8" r="2.4"/><path d="M16.2 12.6v1.2"/><path d="M16.2 19.8v1.2"/><path d="M12 16.8h1.2"/><path d="M19.2 16.8h1.2"/>',
+  chain:'<circle cx="9.2" cy="14.8" r="4.2"/><circle cx="14.8" cy="9.2" r="4.2"/><path d="M11.9 12.1 12.1 11.9"/>',
+  external:'<rect x="5.8" y="5.8" width="12.4" height="12.4" rx="2.6"/><path d="M10.4 17.6C12.6 15.8 16.2 13.4 20.2 8.4"/><path d="M20.4 3.6 14.6 4.8"/><path d="M20.4 3.6 19.2 9.4"/>',
+  rocket:'<path d="M12 3.4v17.2"/><path d="M9 6.4 12 3.4l3 3"/><path d="M6.2 14.6C5.5 11 6.7 8 9.2 5.4"/><path d="M17.8 14.6C18.5 11 17.3 8 14.8 5.4"/><circle cx="12" cy="12.4" r="1.5"/>',
+  case:'<rect x="3.4" y="8.4" width="17.2" height="10.6" rx="3"/><path d="M3.4 12.6h17.2" opacity=".45"/><path d="M8.6 8.4V5.6h6.8v2.8"/><circle cx="12" cy="15.8" r="1.1" fill="currentColor" stroke="none"/>',
+  'page-fold':'<path d="M4.4 6.4h8.4l4.4 4.4v8.4H4.4z"/><path d="M12.8 6.4v4.4h4.4"/><path d="M7.4 15h7.2" opacity=".45"/><path d="M7.4 17.8h4.4" opacity=".45"/>',
+  'page-stack':'<path d="M7.6 8.2h8.8" opacity=".45"/><path d="M6 5.6h8.8" opacity=".45"/><path d="M4.4 3h8.8" opacity=".45"/><path d="M15.4 3v2.6M17.8 5.6v2.6"/>',
+  clipboard:'<rect x="5" y="3.6" width="14" height="16.8" rx="3"/><path d="M9.4 3.6V6h5.2V3.6"/><path d="M9 11.4h6M9 14.4h6M9 17.4h3.6" opacity=".45"/>',
+  tray:'<path d="M4.6 10.4 12 4.2l7.4 6.2"/><path d="M3.4 13.6h17.2"/><circle cx="12" cy="17" r="2.6"/><path d="M9.9 18.6h4.2"/>',
+  dashed:'<path d="M3.6 7.6V4.2h3.6M16.8 4.2h3.6v3.4M20.4 16.4v3.4h-3.6M7.2 19.8H3.6v-3.4"/><path d="M12 9.8v4.4M9.8 12h4.4"/><circle cx="12" cy="12" r="5.6" opacity=".45"/>',
+  'file-spark':'<path d="M12 4.8 7.4 9.4l4.6 4.6 4.6-4.6z"/><path d="M12 9.4v9.8"/><path d="M9.6 15.6h4.8"/><path d="M18.6 14.6l.9 2 2 .9-2 .9-.9 2-.9-2-2-.9 2-.9z" opacity=".5"/>',
+  key:'<circle cx="12" cy="12" r="7.4"/><circle cx="12" cy="12" r="2.6"/><path d="M7.6 16.4l8.8-8.8"/><path d="M15.4 8.6h-2.2" opacity=".5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/>',
+  shield:'<path d="M12 3.6 19.6 8.4l-7.6 12-7.6-12z"/><path d="M5.8 12.4h12.4" opacity=".5"/><path d="M8.8 14.6l3.2 3.2 3.2-3.2"/>',
+  'grid-board':'<rect x="3.6" y="3.6" width="7.2" height="7.2" rx="2"/><rect x="13.2" y="3.6" width="7.2" height="7.2" rx="2"/><rect x="3.6" y="13.2" width="7.2" height="7.2" rx="2"/><rect x="13.2" y="13.2" width="7.2" height="7.2" rx="2"/><circle cx="16.8" cy="16.8" r=".9" fill="currentColor" stroke="none"/>',
+}
 const READABLE_ICONS={
   folder:'<path d="M3.6 18.3V7c0-.9.7-1.6 1.6-1.6h4.3l1.9 2.1h7.4c.9 0 1.6.7 1.6 1.6v9.2c0 .9-.7 1.6-1.6 1.6H5.2c-.9 0-1.6-.7-1.6-1.6z"/><path d="M3.8 9.4h16.4"/>',
   grid:'<rect x="3.6" y="3.6" width="6.6" height="6.6" rx="2"/><rect x="13.8" y="3.6" width="6.6" height="6.6" rx="2"/><rect x="3.6" y="13.8" width="6.6" height="6.6" rx="2"/><rect x="13.8" y="13.8" width="6.6" height="6.6" rx="2"/><path d="M6.2 6.9h1.4M16.4 17.1h1.4"/>',
@@ -791,25 +1143,165 @@ const READABLE_ICONS={
   clock:'<circle cx="12" cy="12" r="8.4"/><path d="M12 7.5V12l3 1.9"/>',
   archive:'<rect x="3.4" y="4.5" width="17.2" height="4.3" rx="1.4"/><path d="M5.3 8.8v9.1c0 1.2.9 2.1 2.1 2.1h9.2c1.2 0 2.1-.9 2.1-2.1V8.8"/><path d="M10 13h4"/>',
   home:'<path d="M4.4 10.7L12 4.5l7.6 6.2v8c0 .9-.7 1.6-1.6 1.6H6c-.9 0-1.6-.7-1.6-1.6z"/><path d="M9.4 20.3v-5.8h5.2v5.8"/>',
-  spark:'<path d="M11 3.4l1.8 4.7 4.7 1.8-4.7 1.8L11 16.4 9.2 11.7 4.5 9.9l4.7-1.8z"/><path d="M17.6 15.4l.9 2.2 2.2.9-2.2.9-.9 2.2-.9-2.2-2.2-.9 2.2-.9z"/>'
-};
+  spark:'<path d="M11 3.4l1.8 4.7 4.7 1.8-4.7 1.8L11 16.4 9.2 11.7 4.5 9.9l4.7-1.8z"/><path d="M17.6 15.4l.9 2.2 2.2.9-2.2.9-.9 2.2-.9-2.2-2.2-.9 2.2-.9z"/>',
+  /* 形态图标的直观档：保住 plain 的物体轮廓，再补一层「看得见的细节」。 */
+  stack:'<path d="M12 3.6 20.4 7.9 12 12.2 3.6 7.9z"/><path d="M3.6 12 12 16.3 20.4 12"/><path d="M3.6 16.1 12 20.4l8.4-4.3" opacity=".5"/>',
+  flame:'<path d="M12 3.4c.6 3.4-1.5 4.9-3 6.5-1.5 1.6-2.5 3.2-2.5 5.2a5.5 5.5 0 0 0 11 0c0-2.4-1.3-4.2-2.8-5.7"/><path d="M12 13.4c1 1.3 1.6 2.2 1.6 3a1.6 1.6 0 0 1-3.2 0c0-.8.6-1.7 1.6-3z"/>',
+  pin:'<path d="M12 21.2c3.9-4.4 5.8-7.5 5.8-10.1a5.8 5.8 0 1 0-11.6 0c0 2.6 1.9 5.7 5.8 10.1z"/><circle cx="12" cy="10.9" r="2.2"/><path d="M6.2 10.9h2.4M15.4 10.9h2.4" opacity=".5"/>',
+  puzzle:'<path d="M9.4 3.6h4.2v1.8a2 2 0 1 0 4 0V3.6h2.8a1 1 0 0 1 1 1v3.2h-1.8a2 2 0 1 0 0 4h1.8v6.6a1 1 0 0 1-1 1h-4.6v-1.8a2 2 0 1 0-4 0v1.8H4.6a1 1 0 0 1-1-1v-4.6h1.8a2 2 0 1 0 0-4H3.6V5.6a1 1 0 0 1 1-1h4.8z"/><circle cx="12.1" cy="14.9" r="1.5" opacity=".28"/>',
+  'book-open':'<path d="M12 6.6C10 4.8 7 4.2 3.8 4.8v13.4c3.2-.6 6.2 0 8.2 1.8 2-1.8 5-2.4 8.2-1.8V4.8c-3.2-.6-6.2 0-8.2 1.8z"/><path d="M12 6.6V20"/><path d="M6.4 8.6h3.4M6.4 11.6h3.4M14.2 8.6h3.4M14.2 11.6h3.4" opacity=".5"/>',
+  'folder-question':'<path d="M3.6 6.4h5.2l2 2.2h9.6v10.4H3.6z"/><path d="M10.6 12.2a1.5 1.5 0 1 1 1.5 1.7v.9"/><circle cx="12.1" cy="16.7" r=".9" fill="currentColor" stroke="none"/>',
+  keyhole:'<rect x="3.6" y="3.6" width="16.8" height="16.8" rx="3.2"/><circle cx="12" cy="10.6" r="2.2" opacity=".22"/><circle cx="12" cy="10.6" r="2.2"/><path d="M12 12.8 10.8 17h2.4z" fill="currentColor" stroke="none"/>',
+  link:'<path d="M10.4 13.6a3.6 3.6 0 0 0 5.1 0l3-3a3.6 3.6 0 0 0-5.1-5.1L12.2 6.7"/><path d="M13.6 10.4a3.6 3.6 0 0 0-5.1 0l-3 3a3.6 3.6 0 0 0 5.1 5.1l1.2-1.2"/><path d="M8.6 15.4l6.8-6.8" opacity=".45"/><circle cx="12" cy="12" r=".95" fill="currentColor" stroke="none"/>',
+  palette:'<path d="M12 3.5a8.5 8.5 0 1 0 0 17 2 2 0 0 0 1.5-3.3 2 2 0 0 1 1.5-3.3h1.9a3.6 3.6 0 0 0 3.6-3.6A8.5 8.5 0 0 0 12 3.5z"/><circle cx="8.4" cy="9.6" r="1.05" fill="currentColor" stroke="none"/><circle cx="12" cy="7.6" r="1.05" fill="currentColor" stroke="none"/><circle cx="15.6" cy="9.8" r="1.05" fill="currentColor" stroke="none"/><circle cx="15.4" cy="16" r="1.5" opacity=".35"/><path d="M11.9 4.6a7.4 7.4 0 0 1 7.4 7.4" opacity=".4"/>',
+  sliders:'<path d="M4 7.5h8M16.5 7.5H20M4 12h3.5M12 12h8M4 16.5h9.5M18 16.5H20"/><circle cx="14.2" cy="7.5" r="2.1"/><circle cx="9.7" cy="12" r="2.1"/><circle cx="15.7" cy="16.5" r="2.1"/><circle cx="14.2" cy="7.5" r=".85" fill="currentColor" stroke="none"/><circle cx="9.7" cy="12" r=".85" fill="currentColor" stroke="none"/><circle cx="15.7" cy="16.5" r=".85" fill="currentColor" stroke="none"/><path d="M4 4.6h16" opacity=".3"/>',
+  chart:'<path d="M4.2 3.8v16.4h15.6"/><path d="M8.6 20.2v-5.6M12.6 20.2V8.4M16.6 20.2v-7.8"/><path d="M7.6 12.8h1.9M11.6 5.4h1.9M15.6 9.2h1.9" opacity=".4"/><circle cx="8.6" cy="14.2" r=".9" fill="currentColor" stroke="none"/><circle cx="12.6" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="16.6" cy="12" r=".9" fill="currentColor" stroke="none"/><path d="M6 17.4h12" opacity=".3"/>',
+  cloud:'<path d="M7.6 18.6a4.2 4.2 0 0 1-.5-8.4 5.3 5.3 0 0 1 10.2-1.2 4 4 0 0 1-.1 9.6z"/><path d="M8.4 15.8a2.9 2.9 0 0 1 1.1-5.5" opacity=".5"/><path d="M14.4 12.6a2.6 2.6 0 0 1 1.6-1.9" opacity=".4"/><circle cx="9.4" cy="17.4" r=".85" fill="currentColor" stroke="none"/><circle cx="15.2" cy="16.6" r=".75" fill="currentColor" stroke="none"/>',
+  mail:'<rect x="3" y="5.4" width="18" height="13.2" rx="3"/><path d="M3.9 7.4L12 12.9l8.1-5.5"/><path d="M6.2 16.4h4.4" opacity=".45"/><circle cx="17.2" cy="16.2" r=".85" fill="currentColor" stroke="none"/><path d="M3.6 12.4h5.6" opacity=".3"/>',
+  cart:'<circle cx="9.6" cy="19" r="1.4"/><circle cx="17.2" cy="19" r="1.4"/><path d="M3 4.2h2.3l2.4 10.4h11L20.6 7.2H6"/><path d="M8.2 11.8h9.4" opacity=".45"/><path d="M10.8 7.8v4M13.6 7.8v4" opacity=".35"/><circle cx="9.6" cy="19" r=".55" fill="currentColor" stroke="none"/><circle cx="17.2" cy="19" r=".55" fill="currentColor" stroke="none"/>',
+  heart:'<path d="M12 20.2s-7.4-4.7-7.4-9.5A4.1 4.1 0 0 1 12 8a4.1 4.1 0 0 1 7.4 2.7c0 4.8-7.4 9.5-7.4 9.5z"/><path d="M8.9 13.2a2.6 2.6 0 0 1 2.2-2.4" opacity=".5"/><path d="M12 8v-.6" opacity=".4"/><circle cx="15.4" cy="10.7" r="1" fill="currentColor" stroke="none"/>',
+  calendar:'<rect x="3.5" y="5.4" width="17" height="15.1" rx="3"/><path d="M3.5 10.2h17M8 3.4v4M16 3.4v4"/><path d="M7.2 13.6h4.6M7.2 17h3.2" opacity=".5"/><path d="M14 13.6h3.2M14 17h3.2" opacity=".3"/><circle cx="14" cy="17" r="1.2" fill="currentColor" stroke="none"/>',
+  map:'<path d="M9 4.4L3.5 6.9v13L9 17.4l6 2.5 5.5-2.5v-13L15 6.9z"/><path d="M9 4.4v13M15 6.9v13"/><path d="M4.9 9.6l3-.9M16.4 17.2l2.6-.9" opacity=".4"/><path d="M6.4 14.2c1.8-2.4 4.2-1.4 6-.6" opacity=".45"/><circle cx="15" cy="11.6" r="1.1" fill="currentColor" stroke="none"/>',
+  code:'<path d="M9.2 7.6L4.8 12l4.4 4.4"/><path d="M14.8 7.6L19.2 12l-4.4 4.4"/><path d="M11 8.2L13 15.8" opacity=".5"/><circle cx="4.8" cy="12" r="1.05" fill="currentColor" stroke="none"/><circle cx="19.2" cy="12" r="1.05" fill="currentColor" stroke="none"/>',
+  game:'<rect x="2.5" y="7" width="19" height="10.6" rx="4.4"/><path d="M9.9 7.6v9.4" opacity=".4"/><path d="M7.2 10.4v3.4M5.5 12.1h3.4"/><circle cx="15.8" cy="11.4" r="1.05" fill="currentColor" stroke="none"/><circle cx="18.2" cy="13.6" r="1.05" fill="currentColor" stroke="none"/><circle cx="16.9" cy="12.4" r="1.9" opacity=".22"/>',
+  image:'<rect x="3" y="4.5" width="18" height="15" rx="3"/><circle cx="8.6" cy="10" r="1.6"/><circle cx="8.6" cy="10" r=".6" fill="currentColor" stroke="none"/><path d="M3.6 17.6l4.4-4.1 4 3.6 3.2-2.7 5.2 4.4"/><path d="M4.6 19.6l7.6-5.4 7.2 3.8" opacity=".4"/>',
+  music:'<circle cx="7" cy="17.4" r="2.5"/><circle cx="17.5" cy="15.2" r="2.5"/><circle cx="7" cy="17.4" r=".8" fill="currentColor" stroke="none"/><circle cx="17.5" cy="15.2" r=".8" fill="currentColor" stroke="none"/><path d="M9.5 17.4V7.5L20 5v10.2"/><path d="M11.2 10.2L20 7.8" opacity=".5"/>',
+  video:'<rect x="2.5" y="6" width="13.2" height="12" rx="3"/><path d="M8.1 10.3l3.4 2-3.4 2z"/><circle cx="12.8" cy="9.2" r=".95" fill="currentColor" stroke="none"/><path d="M15.7 11.2l5.8-3.1v7.8l-5.8-3.1z"/><path d="M4 15.6h9" opacity=".4"/>',
+  'folder-plus':'<path d="M3.5 7.6A2.5 2.5 0 0 1 6 5.1h3.4l1.8 2.2H18a2.5 2.5 0 0 1 2.5 2.5v7.7A2.5 2.5 0 0 1 18 20H6a2.5 2.5 0 0 1-2.5-2.5z"/><path d="M6.6 9.9h10.8" opacity=".5"/><path d="M12 11.4v5M9.5 13.9h5"/><circle cx="12" cy="13.9" r="2.6" opacity=".1"/>',
+  book:'<path d="M5 4.6h12.5A1.5 1.5 0 0 1 19 6.1v13.4H6.8A1.9 1.9 0 0 0 5 21.4z"/><path d="M5 4.6v12.6A1.9 1.9 0 0 1 6.8 15.4H19"/><path d="M7.6 8.2h8.8M7.6 11.4h5.6" opacity=".5"/><circle cx="16.2" cy="11.4" r=".75" fill="currentColor" stroke="none"/>',
+  'book-closed':'<path d="M12 6.6C10 4.8 7 4.2 3.8 4.8v13.4c3.2-.6 6.2 0 8.2 1.8 2-1.8 5-2.4 8.2-1.8V4.8c-3.2-.6-6.2 0-8.2 1.8z"/><path d="M12 6.6V20"/><path d="M6.4 8.2C8 7.9 9.6 8 11 8.7M17.6 8.2c-1.6-.3-3.2-.2-4.6.5" opacity=".5"/><path d="M6.4 16.1c1.6-.3 3.2-.2 4.6.5M17.6 16.1c-1.6-.3-3.2-.2-4.6.5" opacity=".5"/>',
+  database:'<ellipse cx="12" cy="6.4" rx="7.5" ry="3"/><path d="M4.5 6.4v11.2c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6.4"/><path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3"/><circle cx="8.7" cy="6.4" r=".85" opacity=".45"/><path d="M7.5 4.6v3.6M12 4v4.8M16.5 4.6v3.6" opacity=".5"/>',
+  bulb:'<path d="M9.6 16.4a5.4 5.4 0 1 1 4.8 0v1.2a1.6 1.6 0 0 1-1.6 1.6h-1.6a1.6 1.6 0 0 1-1.6-1.6z"/><path d="M10.2 20.6h3.6"/><path d="M10.4 14.6c.6-.7 1.4-.7 2 0M10.6 12.4c.5-.6 1.2-.6 1.7 0" opacity=".5"/><path d="M9.4 9.6a3.2 3.2 0 0 1 1.4-1.9" opacity=".45"/><path d="M8.6 23h6.8" opacity=".3"/>',
+  drawer:'<rect x="4" y="3.6" width="16" height="16.8" rx="2.4"/><path d="M4 9.2h16M4 14.8h16"/><path d="M10 6.4h4M10 12h4M10 17.6h4"/><path d="M6 6.4h1.4M6 12h1.4M6 17.6h1.4" opacity=".45"/>',
+  bundle:'<rect x="3.4" y="3.4" width="12.6" height="12.6" rx="2.4"/><path d="M8.6 19.4h10.8a1.2 1.2 0 0 0 1.2-1.2V8.6"/><path d="M18.4 12.4v7h-7"/><path d="M5.2 5.2h4.4v4.4" opacity=".45"/><circle cx="12" cy="12" r=".9" fill="currentColor" stroke="none"/>',
+  bookmark:'<path d="M6.6 3.6h10.8v17.2L12 16.4l-5.4 4.4z"/><path d="M6.6 3.6A.4.4 0 0 1 7 3.2h10a.4.4 0 0 1 .4.4"/><path d="M9.2 3.2v2.6" opacity=".45"/><path d="M14.8 3.2v2.6" opacity=".45"/><circle cx="12" cy="13.4" r=".9" fill="currentColor" stroke="none"/>',
+  rise:'<path d="M3.6 20.4h16.8"/><rect x="4.6" y="13.6" width="3.6" height="6.8" rx="1"/><rect x="10.2" y="9.4" width="3.6" height="11" rx="1"/><rect x="15.8" y="5.2" width="3.6" height="15.2" rx="1"/><path d="M8.2 13.6 15.8 5.2" opacity=".45"/><path d="M6.4 16.8h.01M12 12.6h.01M17.6 8.4h.01" opacity=".45"/>',
+  brackets:'<path d="m9 7.6-4.4 4.4L9 16.4"/><path d="m15 7.6 4.4 4.4L15 16.4"/><path d="M9.6 12h4.8" opacity=".45"/>',
+  scroll:'<path d="M5.4 6.4h12.2a2.4 2.4 0 0 1 0 4.8H6.4"/><path d="M6.4 11.2h12.2"/><path d="M8.4 3.8h8.2a2.6 2.6 0 0 1 2.6 2.6v9.8a2.4 2.4 0 0 1-2.4 2.4H7.6"/><path d="M5.4 6.4a2.4 2.4 0 0 0 0 4.8"/><path d="M8 15.6h6.2"/><path d="M14.6 15.6h2.6" opacity=".45"/><circle cx="5.4" cy="8.8" r=".95" fill="currentColor" stroke="none"/>',
+  'file-gear':'<path d="M5.6 3.6h7.6l4.2 4.2v6.4"/><path d="M13.2 3.6v4.2h4.2"/><circle cx="15.8" cy="16.6" r="3.4"/><path d="M15.8 11.8v1.4M15.8 20v1.4M11 16.6h1.4M19.2 16.6h1.4"/><path d="M7.8 6.6h3.4" opacity=".45"/><circle cx="15.8" cy="16.6" r=".95" fill="currentColor" stroke="none"/>',
+  chain:'<path d="M10.2 13.8 13.8 10.2"/><path d="M8.6 8.2 6.8 10a3.4 3.4 0 0 0 4.8 4.8l1.8-1.8"/><path d="M15.4 15.8 17.2 14a3.4 3.4 0 0 0-4.8-4.8l-1.8 1.8"/><path d="M7.8 14.2 5.9 16.1" opacity=".45"/><path d="M16.2 9.8l1.9-1.9" opacity=".45"/><circle cx="12" cy="12" r=".95" fill="currentColor" stroke="none"/>',
+  external:'<path d="M18.6 13.4v5a2 2 0 0 1-2 2H5.6a2 2 0 0 1-2-2V7.4a2 2 0 0 1 2-2h5"/><path d="M14.4 3.6h6v6"/><path d="M20.4 3.6 11.8 12.2"/><path d="M5.4 9.6c2.4 1 4.6 1 6.6 0" opacity=".45"/><path d="M5.4 19.4h8.6" opacity=".3"/><circle cx="19.4" cy="4.6" r=".95" fill="currentColor" stroke="none"/>',
+  rocket:'<path d="M12 2.8c3.4 2.6 5 6.2 5 10.4l-2.2 2.6H9.2L7 13.2c0-4.2 1.6-7.8 5-10.4z"/><circle cx="12" cy="10" r="1.8"/><path d="M9.2 15.8 7 19.6l3-1M14.8 15.8l2.2 3.8-3-1M12 17v4"/><path d="M12 4.6v3" opacity=".45"/><path d="M9.9 13.6a2.1 2.1 0 0 0 4.2 0" opacity=".5"/><circle cx="12" cy="10" r=".8" fill="currentColor" stroke="none"/>',
+  case:'<rect x="3.4" y="7.4" width="17.2" height="12" rx="2.4"/><path d="M8.6 7.4V5.6a1.8 1.8 0 0 1 1.8-1.8h3.2a1.8 1.8 0 0 1 1.8 1.8v1.8"/><path d="M3.4 13.4h17.2"/><path d="M12 7.4v6" opacity=".45"/><path d="M6.6 16.4h3.2M14.2 16.4h3.2" opacity=".3"/><circle cx="12" cy="14.4" r=".95" fill="currentColor" stroke="none"/>',
+  'page-fold':'<path d="M6 3.6h7l5 5v11.8H6z"/><path d="M13 3.6V8.6h5"/><path d="M9 12.6h6M9 15.6h6M9 18.2h3.4"/><path d="M7.8 8.6h3.6" opacity=".45"/><path d="M7.8 20.4h6.4" opacity=".3"/>',
+  'page-stack':'<path d="M8.4 6.6h6.4l4.4 4.4v9.4H8.4z"/><path d="M14.8 6.6v4.4h4.4"/><path d="M5.6 3.4h6.2l1.4 1.4"/><path d="M5.6 3.4v11.4"/><path d="M3.4 6.2v14.2h11.6"/><path d="M10.4 13.6h6.4" opacity=".45"/><path d="M10.4 16.8h4.2" opacity=".3"/><circle cx="16.2" cy="18.6" r=".9" fill="currentColor" stroke="none"/>',
+  clipboard:'<rect x="5" y="4.6" width="14" height="15.8" rx="2.2"/><path d="M9 4.6V3.4h6v1.2"/><path d="M9 9.4h6M9 12.6h6M9 15.8h3.4"/><path d="M12 4.6v6.8" opacity=".4"/><circle cx="12" cy="8.6" r=".85" fill="currentColor" stroke="none"/><path d="M7 18.2h3" opacity=".3"/>',
+  tray:'<path d="M3.6 13.4 6.2 5.6h11.6l2.6 7.8v5.4H3.6z"/><path d="M3.6 13.4h4.6l.9 2.4h5.8l.9-2.4h4.6"/><path d="M6.8 7.8h10.4" opacity=".5"/><circle cx="12" cy="16.4" r="1" fill="currentColor" stroke="none"/>',
+  dashed:'<path d="M3.8 7.4V4.6h3.4M16.8 4.6h3.4v2.8M20.2 16.6v2.8h-3.4M7.2 19.4H3.8v-2.8"/><path d="M12 9.4v5.2M9.4 12h5.2"/><path d="M5.2 5.6 4.4 4.8M18.8 5.6l.8-.8M18.8 18.4l.8.8M5.2 18.4l-.8.8" opacity=".5"/>',
+  'file-spark':'<path d="M5.6 3.6h7.6l4.6 4.6v12.2H5.6z"/><path d="M13.2 3.6v4.6h4.6"/><path d="m16.4 12.4.9 1.8 2 .3-1.45 1.4.34 2-1.79-.94-1.79.94.34-2-1.45-1.4 2-.3z"/><path d="M8.2 11.6h2.6M8.2 14.6h4.4M8.2 17.6h3.2" opacity=".5"/><circle cx="8.2" cy="8.4" r=".9" fill="currentColor" stroke="none"/>',
+  key:'<circle cx="7.4" cy="7.4" r="3.8"/><path d="m10.2 10.2 9.4 9.4"/><path d="m16.4 16.4 1.8-1.8M14.2 14.2l1.8-1.8"/><circle cx="7.4" cy="7.4" r="1.2" opacity=".5"/><circle cx="18.4" cy="18.4" r=".95" fill="currentColor" stroke="none"/>',
+  shield:'<path d="M12 3.4 19.4 6.2v6c0 4.2-3 7.2-7.4 8.8-4.4-1.6-7.4-4.6-7.4-8.8v-6z"/><path d="M12 3.4v17.6"/><path d="m8.8 10.4 3.2 3 3.2-3" opacity=".5"/><circle cx="12" cy="15.6" r="1" fill="currentColor" stroke="none"/>',
+  'grid-board':'<rect x="3.4" y="3.4" width="17.2" height="17.2" rx="3"/><path d="M12 3.4v17.2M3.4 12h17.2"/><path d="M5.6 5.6h3.2M15.2 5.6h3.2M5.6 18.4h3.2M15.2 18.4h3.2" opacity=".5"/><circle cx="17.4" cy="6.6" r="1" fill="currentColor" stroke="none"/>',
+}
 const ICON_VARIANTS={abstract:ABSTRACT_ICONS,readable:READABLE_ICONS};
+const ICON_STYLE_IDS=['plain','tile','abstract','readable'];
+/* 图标风格的名字：M4-MAIN 与 M4-PREF 共用这一份（两处都会显示给用户）。 */
+const ICON_STYLE_LABELS={plain:'极简线稿',tile:'圆角方块',abstract:'抽象符号',readable:'直观重绘'};
+/* 图标选择器的候选集。ICON_GROUPS 是**分组的**清单：前 8 组就是
+   assets/icons/category-icon-forms-preview.html 里那 8 个分类 × 4 个形态方案
+   （组内顺序与预览页一致），最后一组是通用/语义图标。
+   PICKER_ICONS 仍然是一维全量清单（60 枚），供「库里有没有这枚图标」这类判断使用；
+   需要分组展示时用 ICON_GROUPS。ICON_FORMS 是那 32 个形态方案的一维视图（供审计/文档引用）。
+   ⚠️ 必须放在 window.PWB_ICONS 之前定义，否则 TDZ 错误会终止整个脚本块。 */
+const ICON_GROUPS=[
+  { label:'概览', note:'全部内容汇总', icons:['stack','grid-board','drawer','bundle'] },
+  { label:'常用', note:'收藏 · 热度 · 频率', icons:['star','flame','bookmark','rise'] },
+  { label:'脚本', note:'代码 · 终端 · 自动化', icons:['brackets','terminal','scroll','file-gear'] },
+  { label:'网址', note:'网络 · 链接 · 外链', icons:['globe','chain','pin','external'] },
+  { label:'应用', note:'启动台 · 启动 · 工具集', icons:['grid','rocket','case','puzzle'] },
+  { label:'文档', note:'单页 · 叠页 · 阅读 · 清单', icons:['page-fold','page-stack','book','clipboard'] },
+  { label:'待补充', note:'待处理 · 空缺 · 归类', icons:['tray','dashed','folder-question','file-spark'] },
+  { label:'密码库', note:'锁 · 凭证 · 保护', icons:['lock','key','shield','keyhole'] },
+  /* folder 与 book-open 是 categoryIcon() 会回落到的主力图标（关键词表的第 1 条与
+     「文档/文件」那条），以前没进选择器，等于用户看不到也挑不到它们。 */
+  { label:'通用', note:'文件夹 · 媒体 · 生活 · 工具', icons:[
+    'folder','book-open','spark','inbox','code','link','app','file',
+    'folder-plus','archive','clock','game','image','music','video','book-closed','chart',
+    'cloud','mail','cart','heart','home','calendar','map','bulb','database','palette','sliders'] }
+];
+const ICON_FORMS=ICON_GROUPS.slice(0,-1).flatMap(group=>group.icons);
+const PICKER_ICONS=ICON_GROUPS.flatMap(group=>group.icons);
+const hasIconStyle=value=>ICON_STYLE_IDS.includes(value);
+/* 全局档（body[data-icon-style]）归一成一个合法风格名。
+   ⚠️ 这里必须用 hasIconStyle 判而不是写死 'abstract'||'readable'：
+   tile 在**路径**上与 plain 相同（它只加底色，换的是容器），但 tile 在**容器**上不同，
+   回落成 'plain' 会让「全局选了圆角方块、某个分类没单独设样式」的那一行丢掉底色。
+   路径选择那一层（ICON_VARIANTS[variant] 取不到时回落 ICONS）本来就保证了 tile=plain 的路径。 */
 function activeIconVariant(){
   const style=document.body?.dataset?.iconStyle;
-  return style==='abstract'||style==='readable'?style:'plain';
+  return hasIconStyle(style)?style:'plain';
 }
-function iconBody(name){
+
+/* -------------------- 每个分类自己的图标样式（M4-MAIN 侧） --------------------
+   存放在 localStorage 的 pwb.prefs.iconStyles（与 M4-PREF 的六组偏好同一个键），
+   形如 {分类key: 'tile'}；缺键＝跟随设置面板的全局档。
+   为什么不写进 catalog.json：后端两端都把 category.symbol 截到 2 字符
+   （见 INTERFACES.md 6.5、server.js 的 normalizeCategory），'tile' 正好被截成 'ti'，
+   存不下来；这与皮肤、品牌头像、界面偏好一样属于「本端界面偏好」，
+   所以跟它们放同一处，不进数据契约。
+   读取端做成容错的：localStorage 不可用、字段被手改成非对象都只当「没设过」。 */
+const ICON_PREFS_KEY='pwb.prefs';
+function readIconStyles(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(ICON_PREFS_KEY)||'null');
+    /* ⚠️ 不要写成 typeof saved.iconStyles 再拿它当值用：那是个类型名字符串（'object'），
+       它自己 typeof 也是 'object'，判断会假通过，于是永远读不到覆盖表。 */
+    const map=saved&&saved.iconStyles;
+    if(map&&typeof map==='object')return map;
+  }catch(_){}
+  return {};
+}
+/* 某个分类实际该用哪一档：自己的设置优先，没设过就跟随全局。 */
+function categoryIconStyle(category){
+  const own=readIconStyles()[category?.key];
+  return hasIconStyle(own)?own:activeIconVariant();
+}
+function writeIconStyle(key,style){
+  if(!key)return;
+  writeIconPref('iconStyles',key,hasIconStyle(style)?style:'');
+}
+/* -------------------- 每个分类自己的图标（M4-MAIN 侧） --------------------
+   和图标样式同一套机制、同一个键里的另一张表（pwb.prefs.iconNames）。
+   同样不能进 catalog.json：后端把 category.symbol 截到 2 字符，'shield' 这种名字存不下来。
+   读取端一律经 categoryIcon() 的第一段生效（见那里的注释）。 */
+function readIconNames(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(ICON_PREFS_KEY)||'null');
+    const map=saved&&saved.iconNames;
+    if(map&&typeof map==='object')return map;
+  }catch(_){}
+  return {};
+}
+function writeIconName(key,name){
+  if(!key)return;
+  writeIconPref('iconNames',key,hasIcon(name)?name:'');
+}
+/* 两张覆盖表（样式 / 图标名）的公共写入：空值或非法值 = 删掉那条覆盖。 */
+function writeIconPref(field,key,value){
+  try{
+    const saved=JSON.parse(localStorage.getItem(ICON_PREFS_KEY)||'null');
+    const prefs=saved&&typeof saved==='object'?saved:{};
+    const map=prefs[field]&&typeof prefs[field]==='object'?prefs[field]:{};
+    if(value)map[key]=value;else delete map[key];
+    prefs[field]=map;
+    localStorage.setItem(ICON_PREFS_KEY,JSON.stringify(prefs));
+  }catch(_){}
+}
+/* 指定风格时按指定的取；没指定就跟随全局档（后者是既有行为，不能变）。 */
+function iconBody(name,style){
   const safe=hasIcon(name)?name:'spark';
-  const set=ICON_VARIANTS[activeIconVariant()];
+  const variant=hasIconStyle(style)?style:activeIconVariant();
+  const set=ICON_VARIANTS[variant];
   return (set&&set[safe])||ICONS[safe]||ICONS.spark;
 }
-/* 图标渲染：统一 24 视口 + 描边，颜色一律 currentColor，尺寸交给 CSS。 */
-function iconSvg(name){
-  const variant=activeIconVariant();
+/* 图标渲染：统一 24 视口 + 描边，颜色一律 currentColor，尺寸交给 CSS。
+   style 传了就用它（分类自定义），没传就走全局档。 */
+function iconSvg(name,style){
+  const variant=hasIconStyle(style)?style:activeIconVariant();
   const stroke=variant==='abstract'?'1.78':variant==='readable'?'1.7':'1.65';
-  return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="'+stroke+'" stroke-linecap="round" stroke-linejoin="round">'+iconBody(name)+'</svg>';
+  return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="'+stroke+'" stroke-linecap="round" stroke-linejoin="round">'+iconBody(name,variant)+'</svg>';
 }
-function iconInto(box,name){if(box)box.innerHTML=iconSvg(name);return box}
+function iconInto(box,name,style){if(box)box.innerHTML=iconSvg(name,style);return box}
 /* 把标记里 data-icon 声明的图标填进对应容器（按钮里的 .bar-ic/.nav-icon，否则写进元素本身）。 */
 function hydrateIcons(scope){
   (scope||document).querySelectorAll('[data-icon]').forEach(host=>{
@@ -819,10 +1311,47 @@ function hydrateIcons(scope){
 function refreshIconGlyphs(scope){
   const root=scope||document;
   hydrateIcons(root);
-  root.querySelectorAll('[data-icon-name]').forEach(box=>iconInto(box,box.dataset.iconName));
+  root.querySelectorAll('[data-icon-name]').forEach(box=>{
+    /* 侧栏那一行如果单独设过样式，重绘时要按它自己的档位取路径（见 categoryIconStyle）。 */
+    const owned=box.closest('[data-view]');
+    const category=owned&&state.categories.find(c=>c.key===owned.dataset.view);
+    iconInto(box,box.dataset.iconName,category?categoryIconStyle(category):undefined);
+  });
   paintIconSlot();
 }
-window.PWB_ICONS={refresh:refreshIconGlyphs};
+/* 只重刷侧栏里与分类有关的那几行：改图标样式或改图标后走这里，
+   不整块重建导航（避免丢焦点、丢滚动位置）。
+   ⚠️ 图标名要**重新算**（categoryIcon），不能只沿用 DOM 上旧的 data-icon-name ——
+   否则在设置面板里换了图标，侧栏那一行会保持旧图标直到下次整块重建。 */
+function refreshIconStyleRows(){
+  const root=document.getElementById('nav');
+  if(!root)return;
+  for(const row of root.querySelectorAll('.nav-link[data-view]')){
+    const box=row.querySelector('.nav-icon');
+    if(!box)continue;
+    const category=state.categories.find(c=>c.key===row.dataset.view);
+    const style=category?categoryIconStyle(category):activeIconVariant();
+    const name=category?categoryIcon(category):box.dataset.iconName;
+    box.dataset.iconName=name;
+    box.dataset.iconStyle=style;
+    iconInto(box,name,style);
+  }
+}
+/* M4-PREF 需要知道的与图标有关的东西：重绘、逐分类的图标与档位读写、风格标签。 */
+window.PWB_ICONS={
+  refresh:refreshIconGlyphs,
+  styleOf:categoryIconStyle,
+  /* 该分类**自己设过**的那一档 / 那一枚；没设过返回 ''（用来判断「再点一次＝取消」）。 */
+  overrideOf:category=>readIconStyles()[category?.key]||'',
+  overrideNameOf:category=>readIconNames()[category?.key]||'',
+  iconOf:categoryIcon,
+  setStyle:writeIconStyle,
+  setIcon:writeIconName,
+  refreshRows:refreshIconStyleRows,
+  labels:ICON_STYLE_LABELS,
+  iconNames:PICKER_ICONS,
+  groups:ICON_GROUPS
+};
 
 /* ---------------------- 品牌标（顶栏 / 侧栏左上角） ----------------------
    默认画 M4 设计的「个」字几何标；点一下可以换成自己的照片 / Logo。
@@ -896,18 +1425,34 @@ function initBrand(){
 /* 跨块契约：设置面板（M4-PREF）的「上传 / 恢复默认」两个按钮走这里。 */
 window.PWB_BRAND={pick:()=>$('brandFile').click(),reset:clearBrand};
 /* 分类图标：优先用数据里写死的图标名（symbol 或 icon 字段），其次按名称关键词猜，
-   最后回落到该分类 kind 的默认图标。旧数据里 ▤ / ◆ 这类字符符号不再直接显示。 */
+   最后回落到该分类 kind 的默认图标。旧数据里 ▤ / ◆ 这类字符符号不再直接显示。
+   ⚠️ 这张表按顺序取第一个命中，所以下面这七条「形态图标」必须排在通用关键词前面：
+      内建分类的 symbol 是 ▣ ↗ ◈ ▤ 这类旧字符（hasIcon 不认），实际生效的就是这里。
+      已逐条核对过不会误伤：只有「概览」会被最后那条 catch-all 命中；
+      「待整理」（内建待补充分类的真实名字）与「文件」二字都不含「整理」；
+      「文件夹」命中第 1 条 folder —— 「文件」那条特意写了 (?!夹) 负向断言，
+      否则「文件夹」会被「文件」二字抢先匹配成 book-open（跟内建「文件」分类撞脸）。
+      内建分类是 脚本/网址/应用/文件/待整理（**注意是「文件」不是「文档」**）；
+      概览、常用、密码库是用户自建分类的常见名字。 */
 const LABEL_ICONS=[
-  [/文件夹|目录/,'folder'],[/密码|口令|账号|凭证/,'lock'],[/备份|归档|存档/,'archive'],[/临时|暂存|待清理/,'clock'],
-  [/脚本|命令|终端/,'terminal'],[/网址|收藏|链接|书签/,'globe'],[/应用|软件|程序/,'app'],
-  [/文档|资料|笔记|文件/,'file'],[/游戏|娱乐/,'game'],[/图片|照片|图库|壁纸/,'image'],
+  [/概览/,'stack'],[/常用|频繁/,'flame'],[/待整理|待补充|待归类|收件/,'folder-question'],
+  [/密码|口令|凭证|保险库/,'keyhole'],[/网址|链接|书签/,'pin'],
+  [/应用|软件|程序/,'puzzle'],[/文档|资料|笔记|文件(?!夹)/,'book-open'],
+  [/文件夹|目录/,'folder'],[/脚本|命令|终端/,'terminal'],[/备份|归档|存档/,'archive'],[/临时|暂存|待清理/,'clock'],
+  [/收藏/,'star'],[/游戏|娱乐/,'game'],[/图片|照片|图库|壁纸/,'image'],
   [/音乐|音频|播客/,'music'],[/视频|影视/,'video'],[/代码|开发|项目/,'code'],
-  [/学习|课程|读书/,'book'],[/数据|统计|报表/,'chart'],[/云盘|网盘|云端/,'cloud'],
+  [/学习|课程|读书/,'book-closed'],[/数据|统计|报表/,'chart'],[/云盘|网盘|云端/,'cloud'],
   [/邮件|邮箱/,'mail'],[/购物|商城|订单/,'cart'],[/日历|日程|计划/,'calendar'],
-  [/地图|出行|导航/,'map'],[/工具|实用/,'bulb'],[/数据库/,'database'],[/首页|主页/,'home']
+  [/地图|出行|导航/,'map'],[/工具|实用/,'bulb'],[/数据库/,'database'],[/主页|首页/,'home']
 ];
 function categoryIcon(category){
   const c=category||{};
+  if(isPackage(c))return 'folder';   /* 合并包统一用文件夹图标 */
+  /* 第 ⓪ 段：用户在设置面板里「这个分类用哪枚图标」挑过的那一枚。
+     放在最前面是因为它是用户的显式选择；后端存不下（symbol 只 2 字符），
+     所以只落本端 localStorage，见 readIconNames()。 */
+  const own=readIconNames()[c.key];
+  if(hasIcon(own))return own;
   const raw=String(c.symbol||'').trim();
   if(hasIcon(raw))return raw;
   if(hasIcon(c.icon))return c.icon;
@@ -916,10 +1461,118 @@ function categoryIcon(category){
   return KIND_ICONS[c.kind]||KIND_ICONS.file;
 }
 
+/* ------------------------------ 合并包 ------------------------------
+   一个「包」在数据层是一个真实分类（只改成员条目的 category，不新增任何结构），
+   界面上收成一张文件夹卡（点开才看到里面），跟手机上的文件夹一个手感。
+   **包不占侧栏、也没有自己的独立区块**：它作为文件夹卡渲染在同类内容的分类里
+   （应用的包出现在「应用」下），侧栏里永远只有用户自己建的那些分类，不会多出
+   一堆「合并包 / 合并包 2」。全程只用既有接口，浏览器版与桌面版行为一致，
+   不新增后端接口：
+     · 建包   → POST /categories（后端会真的建出 data/<包名>/ 文件夹）
+     · 收成员 → POST /items/metadata（对非收件箱条目只改 category，不搬磁盘文件，
+                  所以「应用」包里的 .lnk 仍留在 data/应用/，打开逻辑完全不受影响）
+     · 改名   → POST /categories/update（非内置分类会连文件夹一起改名）
+     · 删除包 → 成员退回同类的内置分类，再 POST /categories/delete {removeFolder:true}
+                ⚠️ 必须带 removeFolder：留下的空目录会被读索引时重新收编成一个分类。
+   标记：建包写 symbol='pk' + note 以「合并包」开头，任一命中即认作包。
+   ⚠️ symbol 会被两端后端截到 2 字符，'pk' 正好存得下（见 INTERFACES.md 6.5），
+      也正因如此合并包暂不支持自选图标——统一用文件夹图标。 */
+const PKG_SYMBOL='pk';
+const PKG_NOTE='合并包 · 点开查看内容';
+function isPackage(category){
+  const c=category||{};
+  if(c.builtin||c.inbox)return false;
+  return c.symbol===PKG_SYMBOL||String(c.note||'').startsWith('合并包');
+}
+/* 内置分类的 key 与 kind 同名（script / link / app / file），删除包时按 kind 找退路。 */
+function builtinCategoryFor(kind){
+  return state.categories.find(c=>c.builtin&&!c.inbox&&c.key===kind)
+    ||state.categories.find(c=>c.builtin&&!c.inbox&&c.kind===kind)
+    ||state.categories.find(c=>c.key==='file')||null;
+}
+function packageMembers(category){
+  return sortItems(state.items.filter(i=>i.status==='complete'&&i.category===category.key));
+}
+/* 包挂在哪个分类下显示：优先同类型的内置分类（应用 / 网址 / 脚本 / 文件），
+   其次同类型的任意分类，最后退回「文件」。这样侧栏与内容区块列的都是用户
+   自己的分类，包只是里面的一张文件夹卡。 */
+function packageHostKey(kind){
+  const list=visibleCategories().filter(c=>!isPackage(c));
+  const host=list.find(c=>c.builtin&&!c.inbox&&c.key===kind)
+    ||list.find(c=>c.builtin&&!c.inbox&&c.kind===kind)
+    ||list.find(c=>c.kind===kind)
+    ||list.find(c=>c.key==='file')
+    ||list[0];
+  return host?host.key:null;
+}
+function packagesIn(categoryKey){
+  return state.categories.filter(c=>isPackage(c)&&packageHostKey(c.kind)===categoryKey);
+}
+/* 侧栏与内容区块只列「用户自己的分类」：包一律以文件夹卡的形式出现在里面，
+   不单独占一行、也不单独占一个区块。 */
+function sectionCategories(){return visibleCategories().filter(c=>!isPackage(c))}
+function packageName(){
+  const used=new Set(state.categories.map(c=>c.label));
+  if(!used.has('合并包'))return '合并包';
+  for(let n=2;n<100;n+=1){const candidate='合并包 '+n;if(!used.has(candidate))return candidate}
+  return '合并包';
+}
+/* 一个包里只能放同一类内容：条目怎么打开由「所属分类」的 kind 决定，混类型会
+   让网址/脚本之类的条目打不开。要根治得给 Item 加 kind 字段（属 M0 变更）。 */
+function sharedKind(items){
+  const kinds=[...new Set(items.map(item=>kindOf(item)))];
+  return kinds.length===1?kinds[0]:'';
+}
+/* 把若干条目收进一个新包。逐条 await，避免并发写 catalog.json 互相覆盖。 */
+async function mergeIntoPackage(label,items){
+  const kind=sharedKind(items);
+  if(!kind)throw Error('一个包里只能放同一类内容，先把它们分开再合并。');
+  const created=await post('/categories',{label,kind,symbol:PKG_SYMBOL,note:PKG_NOTE});
+  const category=created.category;
+  for(const item of items){
+    /* metadata 会整段覆盖 description / tags，所以要把条目现有的值原样带回去。 */
+    await post('/items/metadata',{id:item.id,title:item.title,description:item.description||'',
+      tags:item.tags||[],icon:item.icon||'',target:item.target||'',browser:item.browser||'',
+      category:category.key});
+  }
+  return category;
+}
+/* 删除包（＝解散）：内容一条都不删，只退回同类的内置分类，然后删掉这个空分类与它的空文件夹。 */
+async function dissolvePackage(category){
+  const fallback=builtinCategoryFor(category.kind);
+  if(!fallback)throw Error('没找到可以退回的分类。');
+  for(const item of state.items.filter(i=>i.category===category.key)){
+    await post('/items/metadata',{id:item.id,title:item.title,description:item.description||'',
+      tags:item.tags||[],icon:item.icon||'',target:item.target||'',browser:item.browser||'',
+      category:fallback.key});
+  }
+  await post('/categories/delete',{key:category.key,removeFolder:true});
+  if(state.view===category.key)state.view=fallback.key;
+  return fallback;
+}
+/* 把一条已有内容放进某个包（把一个图标拖到包卡片上松手）。跟建包一样走 metadata：
+   对非收件箱条目只改 category、不搬磁盘文件；类型不同就拒绝，免得包里的内容打不开。 */
+async function addToPackage(category,item){
+  if(!category||!item||item.category===category.key)return;
+  if(kindOf(item)!==category.kind){
+    alert('「'+item.title+'」是'+(KINDS[kindOf(item)]||KINDS.file).label+'，放不进装'
+      +(KINDS[category.kind]||KINDS.file).label+'的包「'+category.label+'」。');
+    return;
+  }
+  try{
+    await post('/items/metadata',{id:item.id,title:item.title,description:item.description||'',
+      tags:item.tags||[],icon:item.icon||'',target:item.target||'',browser:item.browser||'',
+      category:category.key});
+    await loadItems();
+    setStatus('已把「'+item.title+'」放进包「'+category.label+'」。');
+  }catch(error){alert(error.message)}
+}
+
 /* 字母头像用固定色相：不依赖皮肤变量，任何皮肤下都是清晰可辨的色块。 */
 const AVATAR_HUES=[222,262,190,152,34,12,300,174];
 
 const state={items:[],categories:[],view:'all',connected:false,browsers:[],browsersReady:false,
+  multi:false,picked:new Set(),pkgKey:null,
   editor:{mode:'create',id:null,kind:'script',icon:'',appPath:'',appDetail:null,newKind:'file',browser:''},
   picker:{all:[],selected:null,detail:null,icon:''}};
 
@@ -982,9 +1635,11 @@ const IPC_MAP={
   'GET /status':'get_status','GET /items':'get_items','GET /categories':'get_categories',
   'GET /shortcuts':'list_shortcuts','GET /shortcuts/icon':'shortcut_detail','GET /browsers':'list_browsers',
   'POST /scan':'scan_items','POST /categories':'create_category',
+  'POST /categories/update':'update_category','POST /categories/delete':'delete_category',
   'POST /items':'create_item','POST /items/metadata':'complete_metadata',
   'POST /items/update':'update_item','POST /items/delete':'delete_item',
-  'POST /items/reorder':'reorder_items','POST /items/open':'open_item','POST /items/hide':'hide_item'
+  'POST /items/reorder':'reorder_items','POST /items/open':'open_item','POST /items/hide':'hide_item',
+  'POST /links/icon':'fetch_link_icon'
 };
 /* 这些 IPC 命令不接受输入，直接调用。 */
 const IPC_NO_INPUT=new Set(['get_status','get_items','get_categories','list_shortcuts','list_browsers','scan_items']);
@@ -1018,16 +1673,26 @@ async function request(path,options){
 }
 const post=(path,payload)=>request(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
 
+/* 某一行该用哪一档图标样式：分类有自己设过的就用自己的（categoryIconStyle），
+   总览 / 常用 / 待补充不是分类、没有 category 字段，只能跟随全局档。 */
+function rowIconStyle(row){
+  return row.category?categoryIconStyle(row.category):activeIconVariant();
+}
 /* ------------------------------ 渲染 ------------------------------ */
 function renderNav(){
   const nav=$('nav');
   nav.replaceChildren();
   const done=state.items.filter(i=>i.status==='complete');
-  const pending=state.items.filter(i=>i.status==='needs_metadata');
-  const rows=[{view:'all',icon:'grid',label:'全部内容',count:done.length},
-    {view:'frequent',icon:'star',label:'常用',count:0},{sep:true},
-    ...visibleCategories().map(c=>({view:c.key,icon:categoryIcon(c),label:c.label,count:done.filter(i=>i.category===c.key).length,category:c})),
-    {sep:true},{view:inboxKey(),icon:'inbox',label:'待补充',count:pending.length}];
+  /* 总览与常用这两行不属于分类（没有 category-link），图标写死在这里。
+     「全部内容」用 stack 而不是 grid：grid 是四宫格，会和应用的拼图/宫格语义撞。
+     「常用」用 flame 而不是 star：star 同时是「收藏」的语义，混用会指代不清。 */
+  const rows=[{view:'all',icon:'stack',label:'全部内容',count:done.length},
+    {view:'frequent',icon:'flame',label:'常用',count:0},{sep:true},
+    /* 计数把挂在本分类下的包也算进去：成员虽然 category 指向包，但看上去就在这个分类里。 */
+    ...sectionCategories().map(c=>({view:c.key,icon:categoryIcon(c),label:c.label,
+      count:done.filter(i=>i.category===c.key).length
+        +packagesIn(c.key).reduce((sum,pkg)=>sum+done.filter(i=>i.category===pkg.key).length,0),
+      category:c}))];
   for(const row of rows){
     if(row.sep){const sep=document.createElement('div');sep.className='nav-sep';nav.append(sep);continue}
     const button=document.createElement('button');
@@ -1039,11 +1704,18 @@ function renderNav(){
     button.dataset.tip=row.label+(row.count?'（'+row.count+'）':'');
     const icon=document.createElement('span');icon.className='nav-icon';
     /* 把解析出来的图标名留在 DOM 上：调试与自动化验证都要靠它确认用的是哪一枚。 */
-    icon.dataset.iconName=row.icon;iconInto(icon,row.icon);
+    icon.dataset.iconName=row.icon;
+    /* 图标样式钩子挂在 .nav-icon 自己身上（不是整行）：CSS 的
+       [data-icon-style="x"] .nav-icon 与 body[data-icon-style="x"] .nav-icon 两套规则
+       因此共用同一个属性值。见 M4-CSS 里那两段注释。 */
+    icon.dataset.iconStyle=rowIconStyle(row);
+    iconInto(icon,row.icon,icon.dataset.iconStyle);
     const text=document.createElement('span');text.className='nav-text';text.textContent=row.label;
     button.append(icon,text);
     if(row.count){const count=document.createElement('span');count.className='nav-count';count.textContent=String(row.count);button.append(count)}
-    button.onclick=()=>{state.view=row.view;renderNav();applyView()};
+    /* 切视图照旧重建内容区（render() 末尾会 applyView()，显隐规则不变）：
+       分类区块是静态的，但这样能保证任何视图下 DOM 都是最新的。 */
+    button.onclick=()=>{state.view=row.view;renderNav();render()};
     if(row.category&&!row.category.builtin){
       button.oncontextmenu=event=>{event.preventDefault();openContextMenu(event.clientX,event.clientY,[
         {label:'重命名分类',onClick:()=>renameCategory(row.category)},
@@ -1066,37 +1738,19 @@ function makeIconCard(item){
   const title=document.createElement('span');
   title.className='card-title';title.textContent=item.title;
   card.append(glyph,title);
-  card.onclick=()=>openItem(item);
+  if(state.multi)card.classList.toggle('picked',state.picked.has(item.id));
+  /* 多选模式下点击只负责选中/取消，不会真的启动程序或打开网址。 */
+  card.onclick=()=>{if(state.multi){togglePick(item,card);return}openItem(item)};
   card.oncontextmenu=event=>{
     event.preventDefault();
     openContextMenu(event.clientX,event.clientY,[
       {label:'编辑信息',onClick:()=>openEditor({mode:'edit',item})},
       {label:kind==='link'?'打开网址':kind==='app'?'启动应用':'打开',onClick:()=>openItem(item)},
       {sep:true},
+      {label:'多选合并…',onClick:()=>selectForMerge(item)},
       {label:'删除',danger:true,onClick:()=>deleteItem(item)}]);
   };
   return card;
-}
-
-function makePendingRow(item){
-  const row=document.createElement('li');
-  row.className='item';
-  const glyph=document.createElement('span');
-  glyph.className='item-icon';
-  paintIcon(glyph,item);
-  const main=document.createElement('div');
-  main.className='item-main';
-  const title=document.createElement('strong');title.textContent=item.title;
-  const meta=document.createElement('span');
-  meta.textContent=[item.sourcePath,item.description].filter(Boolean).join(' · ')||'等待归类';
-  main.append(title,meta);
-  const badge=document.createElement('span');badge.className='badge';badge.textContent='待补充';
-  const actions=document.createElement('div');actions.className='item-actions';
-  const fill=document.createElement('button');fill.type='button';fill.textContent='归类';fill.onclick=()=>openEditor({mode:'assign',item});
-  const skip=document.createElement('button');skip.type='button';skip.className='secondary btn-sm';skip.textContent='忽略';skip.onclick=()=>hideItem(item);
-  actions.append(fill,skip);
-  row.append(glyph,main,badge,actions);
-  return row;
 }
 
 function makeSection(key,symbol,title,note){
@@ -1128,29 +1782,32 @@ function render(){
   frequent.append(frequentGrid);
   content.append(frequent);
 
-  for(const category of visibleCategories()){
+  for(const category of sectionCategories()){
     const kind=KINDS[category.kind]||KINDS.file;
     const section=makeSection(category.key,category.symbol,category.label,
       category.note||(kind.blurb+' · 可拖动排序'));
+    /* 首页保留分类双列概览；进入具体分类时才让该分类横向铺满整行。 */
+    section.classList.toggle('wide',state.view!=='all');
     const grid=document.createElement('div');
     grid.className='icon-grid';
     grid.id='grid-'+category.key;
     const list=sortItems(done.filter(i=>i.category===category.key));
-    if(list.length)list.forEach(item=>grid.append(makeIconCard(item)));
-    else grid.innerHTML='<p class="empty">还没有内容。点右上角「＋ 新增」，或把文件放进 <code>data/'+category.folder+'/</code> 后点「同步文件夹」。</p>';
-    section.append(grid);
+    /* 包作为文件夹卡排在本分类成员前面：一摞同类内容收成一张卡，点开看里面，
+       右键可以改名或删除（删除＝解散，不动任何内容与文件）。包卡片没有 data-id，
+       拖拽排序与合并目标都会跳过它（见 M4-DRAG 的 pointerdown / placeAt）。 */
+    const packages=packagesIn(category.key);
+    if(list.length||packages.length){
+      for(const pkg of packages){
+        grid.append(makePackageCard(pkg,sortItems(done.filter(i=>i.category===pkg.key))));
+      }
+      list.forEach(item=>grid.append(makeIconCard(item)));
+      section.append(grid);
+    }else{
+      grid.innerHTML='<p class="empty">还没有内容。点右上角「＋ 新增」，或把文件放进 <code>data/'+category.folder+'/</code> 后点「同步文件夹」。</p>';
+      section.append(grid);
+    }
     content.append(section);
   }
-
-  const inbox=makeSection(inboxKey(),'!','待补充','补上分类和名称后，就会变成上面的快捷图标');
-  inbox.classList.add('wide');
-  const list=document.createElement('ul');
-  list.className='list';list.id='pending';
-  const pending=state.items.filter(i=>i.status==='needs_metadata');
-  if(pending.length)pending.forEach(item=>list.append(makePendingRow(item)));
-  else list.innerHTML='<li class="empty">没有待整理的条目，很干净。</li>';
-  inbox.append(list);
-  content.append(inbox);
 
   applyView();
 }
@@ -1185,17 +1842,22 @@ async function loadBrowsers(){
 
 async function connect(){
   try{
-    const info=await request('/status');
+    /* /status 与 /items 互不依赖，并行发出：桌面版两次 IPC 的往返延迟叠加在首屏上，
+       串行等于白等一趟（浏览器版影响很小，桌面版是可感知的）。 */
+    const [info,data]=await Promise.all([request('/status'),request('/items')]);
     state.connected=true;
     setStatus((nativeInvoke?'桌面版':'浏览器版')+'已连接 · 数据目录 '+(info.dataPath||''));
-    await loadItems();
+    state.items=data.items||[];
+    state.categories=data.categories||state.categories;
+    renderNav();
+    render();
   }catch(error){
     state.connected=false;
     setStatus('无法连接本地工作台：'+error.message,true);
   }
 }
 
-/* -------------------- 图标：一律归一化成 128px PNG -------------------- */
+/* -------------------- 图标归一化（普通 128px，网址自动图标 256px） -------------------- */
 /* 入参可以是 File/Blob，也可以是 data: / blob: 字符串（快捷方式图标走后者）。 */
 async function shrinkImage(source,max){
   const limit=max||128;
@@ -1234,27 +1896,64 @@ function paintIconSlot(){
 }
 
 /* ------------------------------ 编辑器 ------------------------------ */
-/* 分类图标选择器铺的图标：语义图标为主，去掉纯窗口控件（─ ▢ ✕）那几枚。 */
-const PICKER_ICONS=['spark','grid','star','inbox','terminal','code','globe','link','app','file',
-  'folder-plus','archive','lock','clock','game','image','music','video','book','chart',
-  'cloud','mail','cart','heart','home','calendar','map','bulb','database','palette','sliders'];
-/* 选中值记在容器的 dataset.value 上，不额外放隐藏 input。 */
-function buildIconPicker(box,current){
+/* 图标选择器：**按分类分组渲染**（一组 = 一个分类，组内 4 个形态方案）。
+   结构：一个分类 = 一个 .icon-group，组内是 .icon-row-label（组名 + 说明，**在上**）
+   + .icon-row（图标排），见 M4-CSS 的 .icon-pick。
+   参数：
+     box    容器（.icon-pick）
+     current 当前选中值（写成 box.dataset.value）
+     onPick  选中回调（可选）
+     keyword 名字筛选（可选）：命中 0 枚的组整块不渲染（标题也不会留下）
+   选中态由「按名字查」决定，不看按钮在哪个组——同一枚图标只出现在一组里。 */
+function buildIconPicker(box,current,onPick,keyword){
   if(!box)return;
   box.replaceChildren();
   box.dataset.value=hasIcon(current)?current:'spark';
-  for(const name of PICKER_ICONS){
-    const button=document.createElement('button');
-    button.type='button';
-    button.title=name;
-    button.className=name===box.dataset.value?'on':'';
-    button.dataset.iconName=name;
-    iconInto(button,name);
-    button.onclick=()=>{
-      box.dataset.value=name;
-      [...box.children].forEach(node=>node.classList.toggle('on',node===button));
-    };
-    box.append(button);
+  const filter=String(keyword||'').trim().toLowerCase();
+  const mark=(node,on)=>node.classList.toggle('on',on);
+  for(const group of ICON_GROUPS){
+    const names=filter?group.icons.filter(name=>name.includes(filter)):group.icons;
+    if(!names.length)continue;
+    /* 标题与图标排包在同一个 .icon-group 里：标题在上、块块之间有分隔线，
+       筛选后整块消失（不会出现「标题留下、图标没了」）。 */
+    const block=document.createElement('div');
+    block.className='icon-group';
+    block.dataset.group=group.label;
+    const label=document.createElement('div');
+    label.className='icon-row-label';
+    const title=document.createElement('b');
+    title.textContent=group.label;
+    label.append(title);
+    if(group.note){
+      const note=document.createElement('span');
+      note.textContent=group.note;
+      label.append(note);
+    }
+    const row=document.createElement('div');
+    row.className='icon-row';
+    for(const name of names){
+      const button=document.createElement('button');
+      button.type='button';
+      button.title=name;
+      button.className=name===box.dataset.value?'on':'';
+      button.dataset.iconName=name;
+      iconInto(button,name);
+      button.onclick=event=>{
+        if(event&&event.stopPropagation)event.stopPropagation();
+        box.dataset.value=name;
+        box.querySelectorAll('button').forEach(node=>mark(node,node.dataset.iconName===name));
+        if(onPick)onPick(name);
+      };
+      row.append(button);
+    }
+    block.append(label,row);
+    box.append(block);
+  }
+  if(!box.querySelector('button')){
+    const none=document.createElement('p');
+    none.className='tip';
+    none.textContent='没有匹配的图标。';
+    box.append(none);
   }
 }
 function buildSegmented(kinds,current,onPick){
@@ -1289,12 +1988,20 @@ function buildKindCards(box,current,onPick){
 }
 
 function setEditorKind(kind){
+  const previous=state.editor.kind;
+  /* 离开「网址」字段组前先把用户选过的浏览器收进编辑器状态，切回来的还能保留。 */
+  if(previous==='link'&&$('browserPick').options.length)state.editor.browser=browserValue();
   state.editor.kind=kind;
   buildSegmented(KIND_ORDER,kind,setEditorKind);
   $$('#editor .kfields').forEach(block=>{block.hidden=block.dataset.kind!==kind});
   $('iconTip').textContent=KINDS[kind].blurb+'。点左边方块可以换图标。';
   if(state.editor.mode==='create')$('dialogTitle').textContent='新增'+KINDS[kind].label;
   paintIconSlot();
+  /* 「用哪个浏览器打开」的选项要等本机浏览器探测回来才铺得上，
+     所以每次进到「网址」字段组都准备一遍：先用已有列表铺一次，探测回来再铺一次。
+     列表有 browsersReady 缓存，重复进入不会再打请求。放在这里而不是 openEditor，
+     是因为打开编辑器时切换类型（脚本 → 网址）也必须铺选项，否则下拉是空的、点开什么都没有。 */
+  if(kind==='link')prepareBrowserFields(state.editor.browser);
 }
 
 function renderPickedApp(target,args){
@@ -1307,6 +2014,8 @@ function renderPickedApp(target,args){
     box.append(blank);
     return;
   }
+  const isUwp=typeof target==='string'&&target.startsWith('shell:AppsFolder\\');
+  const displayName=isUwp?(target.split('!')[0].split('.').pop()||'商店应用'):baseName(target);
   const row=document.createElement('div');
   row.className='picked';
   const glyph=document.createElement('span');
@@ -1314,11 +2023,11 @@ function renderPickedApp(target,args){
   if(state.editor.icon){
     const img=document.createElement('img');img.src=state.editor.icon;img.alt='';glyph.append(img);
   }else{
-    colorSwatch(glyph,baseName(target),baseName(target).slice(0,1).toUpperCase()||'◈');
+    colorSwatch(glyph,displayName,displayName.slice(0,1).toUpperCase()||'◈');
   }
   const text=document.createElement('div');text.className='txt';
-  const strong=document.createElement('strong');strong.textContent=baseName(target);
-  const span=document.createElement('span');span.textContent=args?target+'  '+args:target;
+  const strong=document.createElement('strong');strong.textContent=displayName;
+  const span=document.createElement('span');span.textContent=isUwp?'Microsoft Store':(args?target+'  '+args:target);
   text.append(strong,span);
   const change=document.createElement('button');
   change.type='button';change.className='secondary btn-sm';change.textContent='更换';
@@ -1372,11 +2081,35 @@ function browserValue(){
   return picked==='__custom__'?$('browserPath').value.trim():picked;
 }
 
+function populateCreateCategories(selectedKey){
+  const select=$('createCategory');
+  const categories=visibleCategories();
+  select.replaceChildren();
+  for(const category of categories){
+    const option=document.createElement('option');
+    option.value=category.key;
+    option.textContent=category.label+'（'+KINDS[category.kind].label+'）';
+    select.append(option);
+  }
+  const selected=categories.find(category=>category.key===selectedKey)||categories.find(category=>category.key==='script')||categories[0];
+  if(!selected)return null;
+  select.value=selected.key;
+  const apply=()=>{
+    const category=categories.find(entry=>entry.key===select.value)||selected;
+    state.editor.category=category.key;
+    setEditorKind(category.kind);
+    $('dialogTitle').textContent='新增到'+category.label;
+  };
+  select.onchange=apply;
+  apply();
+  return selected;
+}
+
 function openEditor(options){
   const mode=options.mode;
   const item=options.item||null;
   const ed=state.editor;
-  ed.mode=mode;ed.id=item?item.id:null;ed.icon=item?item.icon||'':'';ed.appPath='';ed.appDetail=null;ed.newKind='file';ed.browser=item?item.browser||'':'';
+  ed.mode=mode;ed.id=item?item.id:null;ed.icon=item?item.icon||'':'';ed.appPath='';ed.appDetail=null;ed.newKind='file';ed.browser=item?item.browser||'':'';ed.kind='';ed.category=item?item.category:'';
   $('title').value=item?item.title||'':'';
   $('description').value=item?item.description||'':'';
   $('tags').value=item?(item.tags||[]).join(','):'';
@@ -1386,6 +2119,7 @@ function openEditor(options){
   $('editor').hidden=false;
   $('assignBlock').hidden=mode!=='assign';
   $('assignNew').hidden=true;
+  $('createCategoryBlock').hidden=mode!=='create';
 
   if(mode==='assign'){
     $('dialogTitle').textContent='归类这条内容';
@@ -1424,15 +2158,13 @@ function openEditor(options){
     setEditorKind(kind);
     $('kindSwitch').hidden=true;
   }else{
-    const wanted=options.category&&KINDS[options.category.kind]?options.category.kind:'script';
-    $('dialogTitle').textContent='新增'+KINDS[wanted].label;
-    $('dialogHint').textContent='只显示这个类型需要的字段，说明与标签在「更多选项」里。';
-    $('kindSwitch').hidden=false;
-    setEditorKind(wanted);
+    const selected=populateCreateCategories(options.category?.key);
+    $('dialogHint').textContent=selected?'选择分类后会显示该分类需要的字段，说明与标签在「更多选项」里。':'请先新建一个分类。';
+    $('kindSwitch').hidden=true;
     renderPickedApp('','');
   }
   $('save').textContent=mode==='edit'?'保存修改':mode==='assign'?'归类并保存':'保存';
-  if(state.editor.kind==='link')prepareBrowserFields(ed.browser);
+  /* 「用哪个浏览器打开」的选项由 setEditorKind() 负责准备（上面三个分支都调用过它）。 */
   $('title').focus();
 }
 
@@ -1447,6 +2179,9 @@ async function saveEditor(){
   const base={title,description:$('description').value.trim(),
     tags:$('tags').value.split(',').map(x=>x.trim()).filter(Boolean),icon:ed.icon};
   try{
+    /* 新增网址默认自动取一次图标；用户自己上传过图标时 ed.icon 已有值，绝不覆盖。 */
+    if(ed.mode==='create'&&ed.kind==='link'&&!ed.icon)await readLinkIcon(false);
+    base.icon=ed.icon;
     if(ed.mode==='edit'){
       await post('/items/update',{id:ed.id,...base,
         target:ed.kind==='link'?$('url').value:ed.kind==='file'?$('filePath').value:'',
@@ -1461,7 +2196,7 @@ async function saveEditor(){
       }
       await post('/items/metadata',payload);
     }else{
-      const payload={category:ed.kind,...base};
+      const payload={category:ed.category,...base};
       if(ed.kind==='script'){payload.extension=$('extension').value.trim()||'ps1';payload.content=$('content').value}
       else if(ed.kind==='link'){payload.target=$('url').value;payload.browser=browserValue()}
       else if(ed.kind==='app'){
@@ -1474,6 +2209,23 @@ async function saveEditor(){
     await loadItems();
   }catch(error){
     setNotice(note,error.message,true);
+  }
+}
+
+async function readLinkIcon(announce){
+  const ed=state.editor;
+  const url=$('url').value.trim();
+  if(ed.kind!=='link'||!url||ed.icon)return false;
+  try{
+    const data=await post('/links/icon',{url});
+    if(!data.icon)throw Error('没有找到可用的网站图标。');
+    ed.icon=await shrinkImage(data.icon,256);
+    paintIconSlot();
+    if(announce)setNotice($('notice'),'已读取网站图标。');
+    return true;
+  }catch(error){
+    if(announce)setNotice($('notice'),'没能读取网站图标，保存后会使用默认图标。',false);
+    return false;
   }
 }
 
@@ -1522,7 +2274,7 @@ function renderPickerList(){
     const text=document.createElement('span');text.className='txt';
     const name=document.createElement('b');name.textContent=shortcut.name;
     const where=document.createElement('i');
-    where.textContent=shortcut.path.replace(/^.*[\\/]Start Menu[\\/]?/i,'');
+    where.textContent=shortcut.path.startsWith('shell:AppsFolder\\')?'Microsoft Store':shortcut.path.replace(/^.*[\\/]Start Menu[\\/]?/i,'');
     text.append(name,where);
     row.append(swatch,text);
     row.onclick=()=>selectShortcut(shortcut,row);
@@ -1541,7 +2293,7 @@ async function selectShortcut(shortcut,row){
   const big=detail.querySelector('.big');
   colorSwatch(big,shortcut.name,shortcut.name.slice(0,1).toUpperCase());
   detail.querySelector('.d-name').textContent=shortcut.name;
-  detail.querySelector('.d-path').textContent=shortcut.path;
+  detail.querySelector('.d-path').textContent=shortcut.path.startsWith('shell:AppsFolder\\')?'Microsoft Store ('+shortcut.path.split('!')[0].split('.').pop()+')':shortcut.path;
   $('pickUse').disabled=true;
   try{
     const data=await request('/shortcuts/icon',{query:{path:shortcut.path}});
@@ -1593,10 +2345,49 @@ async function usePickedShortcut(){
   }
 }
 
+/* 图标风格的名字直接取 M4-MAIN 那一份（定义在图标集区块，早于这里执行）。 */
+
 /* ------------------------------ 分类管理 ------------------------------ */
+/* 图标样式分段控件的唯一构造函数：新建分类弹窗与设置面板的逐分类行都用它，
+   两处的按钮形状、data-* 键、选中态判定完全一致（设置面板那边的显隐走 syncForm）。
+   withPreview 传图标名时，每个按钮前面会画一枚该图标在该档下的样子。
+   iconOnly 为真时只画图标、不写风格名（设置面板用：四档名字并排看太乱），
+   名称改由悬停浮层（data-tip）与 aria-label 给出，鼠标停上去一样看得到。 */
+function buildIconStyleSeg(box,current,onPick,withPreview,iconOnly){
+  if(!box)return;
+  box.replaceChildren();
+  for(const style of ICON_STYLE_IDS){
+    const button=document.createElement('button');
+    button.type='button';
+    button.dataset.iconstyle=style;
+    button.className=hasIconStyle(current)&&style===current?'on':'';
+    if(withPreview){
+      const cell=document.createElement('span');cell.className='nav-icon';
+      cell.dataset.iconStyle=style;
+      iconInto(cell,withPreview,style);
+      button.append(cell);
+    }
+    const name=ICON_STYLE_LABELS[style]||style;
+    if(iconOnly){
+      button.dataset.tip=name;
+      button.setAttribute('aria-label',name);
+    }else{
+      const label=document.createElement('span');
+      label.textContent=name;
+      button.append(label);
+    }
+    button.onclick=()=>{box.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===button));onPick(style)};
+    box.append(button);
+  }
+}
 function openCategoryModal(){
   $('categoryName').value='';
-  buildIconPicker($('categorySymbolPick'),'spark');
+  let iconStyle='plain';
+  const iconName=()=>$('categorySymbolPick').dataset.value||'spark';
+  /* 换一枚图标，就让四个样式按钮的预览一起换成那枚——这样挑样式时看到的是真实效果。 */
+  const paintStyleSeg=()=>buildIconStyleSeg($('categoryStyleSeg'),iconStyle,style=>{iconStyle=style},iconName());
+  buildIconPicker($('categorySymbolPick'),'spark',paintStyleSeg);
+  paintStyleSeg();
   setNotice($('categoryNotice'),'');
   let choice='file';
   const rebuild=()=>buildKindCards($('categoryKinds'),choice,kind=>{choice=kind;rebuild()});
@@ -1607,11 +2398,17 @@ function openCategoryModal(){
     const label=$('categoryName').value.trim();
     if(!label)return setNotice($('categoryNotice'),'请填写分类名称。',true);
     try{
-      await post('/categories',{label,kind:choice,symbol:$('categorySymbolPick').dataset.value||'spark'});
-      $('categoryModal').hidden=true;
+      await post('/categories',{label,kind:choice,symbol:iconName()});
+      /* 图标样式不进后端（symbol 只存得下 2 字符，见 M4-MAIN 里 readIconStyles 的说明）：
+         必须先建完、拿到分类 key 再写本端偏好。 */
       await loadItems();
       const created=state.categories.find(c=>c.label===label);
-      if(created){state.view=created.key;renderNav();applyView()}
+      if(created){
+        window.PWB_ICONS.setStyle(created.key,iconStyle);
+        state.view=created.key;
+      }
+      $('categoryModal').hidden=true;
+      renderNav();applyView();
     }catch(error){
       setNotice($('categoryNotice'),error.message,true);
     }
@@ -1676,9 +2473,129 @@ function openContextMenu(x,y,rows){
   menu.hidden=false;
 }
 
+/* ------------------------------ 合并包：界面 ------------------------------ */
+/* 文件夹卡：42px 方块里铺最多 4 枚成员图标，与普通卡同尺寸，点开是展开面板。 */
+function makePackageCard(category,members){
+  const card=document.createElement('button');
+  card.type='button';
+  card.className='icon-card pkg-card';
+  card.dataset.pkg=category.key;
+  card.title=category.label+'（'+members.length+' 个'+(KINDS[category.kind]||KINDS.file).label
+    +'）\n点开看里面装了什么 · 右键可以改名或删除这个包';
+  const glyph=document.createElement('span');
+  glyph.className='item-icon pkg-stack';
+  for(const item of members.slice(0,4)){
+    const cell=document.createElement('span');
+    cell.className='pkg-cell';
+    paintIcon(cell,item);
+    glyph.append(cell);
+  }
+  const title=document.createElement('span');
+  title.className='card-title';title.textContent=category.label;
+  card.append(glyph,title);
+  card.onclick=()=>openPackagePanel(category);
+  card.oncontextmenu=event=>{
+    event.preventDefault();
+    event.stopPropagation();
+    const fallback=builtinCategoryFor(category.kind);
+    openContextMenu(event.clientX,event.clientY,[
+      {label:'打开这个包',onClick:()=>openPackagePanel(category)},
+      {label:'重命名包',onClick:()=>renamePackage(category)},
+      {sep:true},
+      /* 包本身就是分类，但**不能**走「删除分类」——那条路会连条目与磁盘文件一起删。
+         删除一个包＝解散：内容原样退回同类分类。 */
+      {label:'删除这个包（内容退回「'+((fallback&&fallback.label)||'文件')+'」）',
+        danger:true,onClick:()=>dissolveConfirm(category)}]);
+  };
+  return card;
+}
+function openPackagePanel(category){
+  state.pkgKey=category.key;
+  const members=packageMembers(category);
+  const grid=$('pkgGrid');
+  grid.replaceChildren();
+  for(const item of members)grid.append(makeIconCard(item));
+  setNotice($('pkgPanelNotice'),'');
+  $('pkgPanel').hidden=false;
+}
+async function renamePackage(category){
+  await renameCategory(category);
+  const fresh=categoryOf(category.key);
+  if(fresh&&!$('pkgPanel').hidden)openPackagePanel(fresh);
+}
+async function dissolveConfirm(category){
+  const members=packageMembers(category);
+  const fallback=builtinCategoryFor(category.kind);
+  const message='删除包「'+category.label+'」？里面的 '+members.length+' 个内容会回到「'
+    +((fallback&&fallback.label)||'文件')+'」，包本身被删除，不会删掉任何内容与文件。';
+  if(!confirm(message))return;
+  try{
+    const landed=await dissolvePackage(category);
+    $('pkgPanel').hidden=true;
+    await loadItems();
+    setStatus('已删除包「'+category.label+'」，'+members.length+' 个内容回到「'+landed.label+'」。');
+  }catch(error){alert(error.message)}
+}
+/* 建包：多选走弹窗（先改好名字再建），拖拽合并直接建、用默认名。
+   建完不切视图——包就出现在成员原属分类里的第一张卡上，眼前就能看到。 */
+async function buildPackage(items,label){
+  const category=await mergeIntoPackage(label,items);
+  if(state.multi)setMultiMode(false);
+  await loadItems();
+  const host=builtinCategoryFor(category.kind);
+  setStatus('已把 '+items.length+' 个内容合并成包「'+category.label+'」，它就在「'
+    +((host&&host.label)||'文件')+'」里，点开能看里面装了什么。');
+  return category;
+}
+function openPackageModal(items,label){
+  if(items.length<2)return;
+  const kind=sharedKind(items);
+  if(!kind){
+    alert('一个包里只能放同一类内容，现在是：'
+      +[...new Set(items.map(i=>(KINDS[kindOf(i)]||KINDS.file).label))].join('、')+'。');
+    return;
+  }
+  state.pkgItems=items;
+  $('pkgName').value=label||packageName();
+  $('pkgHint').textContent='把这 '+items.length+' 个'+(KINDS[kind]||KINDS.file).label+'收进一个包：'
+    +items.map(i=>i.title).slice(0,4).join('、')+(items.length>4?' 等':'');
+  setNotice($('pkgNotice'),'');
+  $('pkgModal').hidden=false;
+  $('pkgName').focus();
+  $('pkgName').select();
+}
+
+/* ------------------------------ 多选模式 ------------------------------ */
+function setMultiMode(on){
+  state.multi=!!on;
+  if(!state.multi)state.picked.clear();
+  document.body.classList.toggle('multi-select',state.multi);
+  render();
+  syncBulkBar();
+}
+function togglePick(item,card){
+  if(state.picked.has(item.id))state.picked.delete(item.id);else state.picked.add(item.id);
+  if(card)card.classList.toggle('picked',state.picked.has(item.id));
+  syncBulkBar();
+}
+function pickedItems(){return [...state.picked].map(id=>state.items.find(i=>i.id===id)).filter(Boolean)}
+/* 右键「多选合并…」：不在多选模式就先切进去，再把这一条选上。 */
+function selectForMerge(item){
+  if(!state.multi)setMultiMode(true);
+  togglePick(item,document.querySelector('.icon-card[data-id="'+item.id+'"]'));
+}
+function syncBulkBar(){
+  const bar=$('bulkBar');
+  bar.hidden=!state.multi;
+  if(!state.multi)return;
+  const items=pickedItems();
+  const kind=sharedKind(items);
+  $('bulkCount').textContent=items.length?'已选 '+items.length+' 项':'点图标来挑，至少 2 个';
+  $('bulkHint').textContent=items.length<2?'':(kind?'合并后收进一个包':'选中的类型不一样，只能合并同一类');
+  $('bulkMerge').disabled=!(items.length>=2&&kind);
+}
+
 /* ------------------------------ 事件绑定 ------------------------------ */
-$('connect').onclick=()=>connect();
-$('scan').onclick=()=>scanFolders();
 /* 抽成命名函数：设置面板里的「同步文件夹」也调它（见 M4-PREF）。 */
 async function scanFolders(){
   try{
@@ -1704,6 +2621,7 @@ $('closeAdd').onclick=closeEditor;
 $('cancelAdd').onclick=closeEditor;
 $('editor').onclick=event=>{if(event.target===$('editor'))closeEditor()};
 $('save').onclick=saveEditor;
+$('url').addEventListener('blur',()=>{if(state.editor.mode==='create')readLinkIcon(true)});
 $('iconSlot').onclick=()=>$('iconFile').click();
 $('importScript').onclick=()=>$('scriptFile').click();
 $('pickApp').onclick=openPicker;
@@ -1741,6 +2659,39 @@ $('pickSearch').oninput=renderPickerList;
 $('categoryClose').onclick=()=>{$('categoryModal').hidden=true};
 $('categoryCancel').onclick=()=>{$('categoryModal').hidden=true};
 
+/* ---- 合并包 / 多选 ---- */
+$('multiSelect').onclick=()=>setMultiMode(!state.multi);
+$('bulkClear').onclick=()=>setMultiMode(false);
+$('bulkMerge').onclick=()=>openPackageModal(pickedItems(),packageName());
+$('pkgSave').onclick=async()=>{
+  const label=$('pkgName').value.trim();
+  const items=state.pkgItems||[];
+  if(!label)return setNotice($('pkgNotice'),'给这个包起个名字。',true);
+  if(items.length<2)return setNotice($('pkgNotice'),'至少要选 2 个内容才能合并。',true);
+  try{
+    await buildPackage(items,label);     /* 建完不切视图：包就出现在成员原属的分类里 */
+    $('pkgModal').hidden=true;
+    state.pkgItems=[];
+  }catch(error){setNotice($('pkgNotice'),error.message,true)}
+};
+$('pkgClose').onclick=()=>{$('pkgModal').hidden=true};
+$('pkgCancel').onclick=()=>{$('pkgModal').hidden=true};
+$('pkgModal').onclick=event=>{if(event.target===$('pkgModal'))$('pkgModal').hidden=true};
+$('pkgName').onkeydown=event=>{if(event.key==='Enter')$('pkgSave').click()};
+$('pkgPanelClose').onclick=()=>{$('pkgPanel').hidden=true};
+$('pkgPanel').onclick=event=>{if(event.target===$('pkgPanel'))$('pkgPanel').hidden=true};
+$('pkgPanel').oncontextmenu=event=>{
+  event.preventDefault();
+  const category=categoryOf(state.pkgKey);
+  if(!category)return;
+  const fallback=builtinCategoryFor(category.kind);
+  openContextMenu(event.clientX,event.clientY,[
+    {label:'重命名包',onClick:()=>renamePackage(category)},
+    {sep:true},
+    {label:'删除这个包（内容退回「'+((fallback&&fallback.label)||'文件')+'」）',
+      danger:true,onClick:()=>dissolveConfirm(category)}]);
+};
+
 $('iconFile').onchange=async event=>{
   const file=event.target.files[0];
   if(!file)return;
@@ -1775,13 +2726,18 @@ document.addEventListener('keydown',event=>{
   $('contextMenu').hidden=true;
   if(!$('picker').hidden)return $('picker').hidden=true;
   if(!$('categoryModal').hidden)return $('categoryModal').hidden=true;
-  if(!$('editor').hidden)closeEditor();
+  if(!$('pkgModal').hidden)return $('pkgModal').hidden=true;
+  if(!$('pkgPanel').hidden)return $('pkgPanel').hidden=true;
+  if(!$('editor').hidden)return closeEditor();
+  if(state.multi)setMultiMode(false);
 });
 window.addEventListener('resize',()=>{$('contextMenu').hidden=true});
 
-/* M4-DRAG 在拖拽结束时会调用它；改名或删掉会让拖拽在结束时抛错。 */
+/* M4-DRAG 在拖拽结束时会调用它；改名或删掉会让拖拽在结束时抛错。
+   只取带 data-id 的卡：合并包的文件夹卡没有 data-id（它不是条目），
+   混在同一个网格里时必须跳过，否则会把空 id 提交给 reorder。 */
 async function persistOrder(grid){
-  const ids=[...grid.querySelectorAll('.icon-card')].map(card=>card.dataset.id);
+  const ids=[...grid.querySelectorAll('.icon-card[data-id]')].map(card=>card.dataset.id);
   if(ids.length<2)return;
   try{await post('/items/reorder',{ids});await loadItems()}
   catch(error){console.error(error)}
@@ -1826,6 +2782,27 @@ hydrateIcons();
 initBrand();
 /* 跨块契约：设置面板（M4-PREF）需要这两个能力，显式暴露，别去摸内部函数。 */
 window.PWB_APP={connect,scanFolders};
+/* 跨块契约：M4-DRAG 不认识业务数据，它把「叠在另一张卡上松手」交到这里处理。
+   · fromDrag：A 叠到 B 上 → 新建一个包（默认名，进去之后随时能重命名）
+   · intoPackage：A 叠到包卡片上 → 放进这个包（同一类内容才允许） */
+window.PWB_MERGE={
+  fromDrag:(sourceId,targetId)=>{
+    const source=state.items.find(i=>i.id===sourceId);
+    const target=state.items.find(i=>i.id===targetId);
+    if(!source||!target||source.id===target.id)return;
+    const items=[target,source];
+    if(!sharedKind(items)){
+      alert('「'+target.title+'」和「'+source.title+'」不是同一类内容，不能合并成一个包。');
+      return;
+    }
+    buildPackage(items,packageName()).catch(error=>alert(error.message));
+  },
+  intoPackage:(packageKey,sourceId)=>{
+    const category=state.categories.find(c=>c.key===packageKey);
+    if(!isPackage(category))return;
+    addToPackage(category,state.items.find(i=>i.id===sourceId));
+  }
+};
 
 connect();
 </script>
@@ -1934,6 +2911,9 @@ connect();
       '--blur':'22px','--panel-border':'rgba(255,255,255,.82)','--panel-shadow':'0 12px 34px rgba(151,77,108,.16)',
       '--bar-bg':'linear-gradient(105deg,rgba(255,255,255,.76),rgba(255,241,245,.59) 48%,rgba(255,255,255,.68))','--bar-border':'rgba(255,255,255,.88)','--bar-shadow':'0 12px 30px rgba(143,69,101,.15),inset 0 -1px 0 rgba(184,89,123,.11)',
       '--bar-btn-bg':'rgba(255,255,255,.73)','--bar-btn-ink':'#a24f6d','--bar-btn-border':'rgba(255,255,255,.84)',
+      /* 月牙顶栏的形状写在 CSS 的 body[data-bar-shape="auto"][data-skin="nocturne-rose"] header 里，
+         且只在「跟随皮肤」档生效 —— 不要用 --bar-shape-* 变量覆盖它，否则用户选「悬浮浮岛」时
+         形状会被再按回月牙，形式与皮肤就分不开了。 */
       '--nav-tile-bg':'rgba(255,255,255,.84)','--nav-tile-ink':'#b25278',
       '--tip-bg':'#fff9fa','--tip-ink':'#563b48','--tip-border':'rgba(204,99,135,.24)',
       '--scroll-thumb':'rgba(183,86,120,.30)','--scroll-thumb-hover':'rgba(183,86,120,.50)','--scroll-track':'transparent',
@@ -2218,10 +3198,14 @@ connect();
     if(event.button!==0||drag)return;
     const card=event.target.closest?.('.icon-card');
     if(!card)return;
+    /* 合并包的文件夹卡本身不能被拖动（但它是「放进这个包」的落点，见 placeAt）；
+       多选模式下点击只负责选中，也不拖。 */
+    if(card.dataset.pkg)return;
+    if(document.body.classList.contains('multi-select'))return;
     const grid=card.closest('.icon-grid');
     if(!grid||grid.id==='frequent')return;
     const box=card.getBoundingClientRect();
-    drag={card,grid,pointerId:event.pointerId,startX:event.clientX,startY:event.clientY,offsetX:event.clientX-box.left,offsetY:event.clientY-box.top,ghost:null,active:false,initial:orderOf(grid)};
+    drag={card,grid,pointerId:event.pointerId,startX:event.clientX,startY:event.clientY,offsetX:event.clientX-box.left,offsetY:event.clientY-box.top,ghost:null,active:false,merge:null,initial:orderOf(grid)};
     if(card.setPointerCapture){try{card.setPointerCapture(event.pointerId)}catch(error){}}
   },true);
   document.addEventListener('pointermove',event=>{
@@ -2243,8 +3227,9 @@ connect();
     endDrag();
   },true);
   document.addEventListener('pointercancel',()=>{if(drag&&drag.active)endDrag();else drag=null},true);
+  /* 只算真实条目卡：包卡片没有 data-id，混在同一个网格里不参与排序比较。 */
   function orderOf(grid){
-    return [...grid.querySelectorAll('.icon-card')].map(card=>card.dataset.id).join(',');
+    return [...grid.querySelectorAll('.icon-card[data-id]')].map(card=>card.dataset.id).join(',');
   }
   function beginDrag(){
     const box=drag.card.getBoundingClientRect();
@@ -2263,19 +3248,43 @@ connect();
   function placeAt(x,y){
     const grid=drag.grid,card=drag.card,area=grid.getBoundingClientRect();
     /* 指针不在本分类网格内时保持原位，避免误排序。 */
-    if(x<area.left||x>area.right||y<area.top||y>area.bottom)return;
-    const others=[...grid.querySelectorAll('.icon-card')].filter(node=>node!==card);
-    let best=null;
+    if(x<area.left||x>area.right||y<area.top||y>area.bottom){markMerge(null);return}
+    const nodes=[...grid.querySelectorAll('.icon-card')].filter(node=>node!==card);
+    /* 排序参照只用真实条目卡：包卡片没有 data-id，不参与插空比较。 */
+    const others=nodes.filter(node=>!node.dataset.pkg);
+    /* 包卡片只作一种用途：指针停在它中间＝「放进这个包」（见 endDrag）。 */
+    const folders=nodes.filter(node=>node.dataset.pkg);
+    let best=null,over=null;
+    const inside=node=>{
+      const box=node.getBoundingClientRect();
+      const inset=Math.min(14,box.width*0.2,box.height*0.2);
+      return x>=box.left+inset&&x<=box.right-inset&&y>=box.top+inset&&y<=box.bottom-inset;
+    };
+    for(const node of folders){if(inside(node))over=node}
     for(const node of others){
       const box=node.getBoundingClientRect();
+      /* 指针落在某张卡的中间那一块＝「把它叠到这张卡上」，松手即合并成一个包；
+         落在卡片边缘或卡片之间仍按老规矩插空排序。 */
+      if(inside(node))over=node;
       const dx=Math.max(box.left-x,0,x-box.right),dy=Math.max(box.top-y,0,y-box.bottom);
       const distance=dx*dx+dy*dy;
       if(!best||distance<best.distance)best={node,box,distance};
     }
+    markMerge(over);
+    if(over)return;                 /* 命中合并 / 归包目标时不再改排序 */
     if(!best)return;
-    const reference=x>best.box.left+best.box.width/2?best.node.nextElementSibling:best.node;
-    if(reference===card||card.nextElementSibling===reference)return;
+    const after=x>best.box.left+best.box.width/2;
+    const reference=after?best.node.nextElementSibling:best.node;
+    /* 同 placeNavAt：after=true 时"已在 best.node 之后"要看 best.node.nextElementSibling===card。 */
+    if(reference===card||(after?best.node.nextElementSibling:card.nextElementSibling)===card)return;
     animatedInsert(grid,card,reference);
+  }
+  /* 合并目标高亮：跟手时只做视觉提示，松手才真的建包（见 endDrag）。 */
+  function markMerge(node){
+    if(drag.merge===node)return;
+    if(drag.merge)drag.merge.classList.remove('merge-target');
+    drag.merge=node||null;
+    if(node)node.classList.add('merge-target');
   }
   /* FLIP：先记录旧位置，插入后用反向位移过渡，让其余图标平滑让位。 */
   function animatedInsert(grid,card,reference){
@@ -2296,10 +3305,19 @@ connect();
   }
   function endDrag(){
     const grid=drag.grid,card=drag.card,ghost=drag.ghost,initial=drag.initial;
+    const sourceId=card.dataset.id;
+    const targetId=drag.merge?drag.merge.dataset.id:'';
+    const targetPkg=drag.merge?drag.merge.dataset.pkg:'';
+    if(drag.merge)drag.merge.classList.remove('merge-target');
     if(ghost)ghost.remove();
     card.classList.remove('drag-source');
     document.body.classList.remove('dragging-active');
     drag=null;
+    /* 两种「叠在卡上松手」，都交给 M4-MAIN 处理（本模块不碰业务、不调后端）：
+       · 叠在包卡片上 → 放进这个包
+       · 叠在另一张条目卡上 → 这两条合并成一个新包 */
+    if(targetPkg&&sourceId){window.PWB_MERGE?.intoPackage(targetPkg,sourceId);return}
+    if(targetId&&sourceId&&targetId!==sourceId){window.PWB_MERGE?.fromDrag(sourceId,targetId);return}
     if(orderOf(grid)!==initial)persistOrder(grid);
   }
 
@@ -2362,7 +3380,12 @@ connect();
     const horizontal=matchMedia('(max-width:760px)').matches;
     const after=horizontal?x>box.left+box.width/2:y>box.top+box.height/2;
     const reference=after?target.nextElementSibling:target;
-    if(reference===navDrag.link||navDrag.link.nextElementSibling===reference)return;
+    /* 短路：插入目标等于自身（reference===link）或已经在最终位置时跳过。
+       after=true 时"已在 target 之后"要看 target.nextElementSibling===link；
+       after=false 时"已在 target 之前"要看 link.nextElementSibling===reference。
+       旧写法 link.nextElementSibling===reference 在 after=true 时误把"link 紧贴
+       target 之后"当成"link 的下一个就是 reference"，导致相邻项向下拖不动。 */
+    if(reference===navDrag.link||(after?target.nextElementSibling:navDrag.link.nextElementSibling)===navDrag.link)return;
     animatedInsert(navDrag.nav,navDrag.link,reference);
   }
   function endNavDrag(){
@@ -2378,27 +3401,42 @@ connect();
 <script>
 /* ============================================================================
    模块 M4-PREF：界面偏好 + 设置面板 + 悬停文字提示
-   - 五组偏好存在 localStorage（键 pwb.prefs），只往 <body> 上写类与 data-*，
-     对应外观全部由 M4-CSS 的 body[data-icon-style] / body[data-nav-style] / body[data-bar-style] / .nav-compact
-     规则承担，组件样式里不写任何判断
+   - 六组偏好存在 localStorage（键 pwb.prefs），只往 <body> 上写类与 data-*，
+     对应外观全部由 M4-CSS 的 body[data-icon-style] / body[data-nav-style] / body[data-bar-style] /
+     body[data-bar-shape] / .nav-compact 规则承担，组件样式里不写任何判断
+   - 顶栏形式（data-bar-shape）刻意与皮肤解耦：auto 跟随皮肤自带的样子，
+     bar / float 则强制统一成吸顶通栏或悬浮浮岛，配色仍由皮肤变量决定
    - 顶栏按钮与紧凑侧栏的「文字」是收起的，鼠标停上去由这里的浮层补回（读元素的 data-tip）
    - 皮肤列表来自 window.PWB_SKIN（M4-SKIN 暴露），连接/同步来自 window.PWB_APP（M4-MAIN 暴露）
    - 只碰 DOM 与偏好存储，不介入 M4-MAIN / M4-SKIN / M4-DRAG 的内部实现
    ========================================================================== */
 (()=>{
   const KEY='pwb.prefs';
-  /* 五组偏好的默认值；键名同时是按钮 data-* 的 dataset 键。 */
-  const DEFAULTS={nav:'expanded',navStyle:'card',barLabels:'off',barStyle:'circle',iconStyle:'plain'};
-  const ICON_STYLE_LABELS={plain:'极简线稿',tile:'圆角方块',abstract:'抽象符号',readable:'直观重绘'};
+  /* 六组偏好 + 逐分类图标样式覆盖，都存在同一个键里；
+     全局偏好的键名同时是按钮 data-* 的 dataset 键。 */
+  const DEFAULTS={nav:'expanded',navStyle:'arc',barLabels:'off',barStyle:'circle',barShape:'auto',iconStyle:'plain',iconStyles:{},orbOpacity:100};
+  /* 风格名与合法取值都取 M4-MAIN 的（那边是图标路径表的拥有者，标签也只有一份）。 */
+  const ICON_STYLE_LABELS=window.PWB_ICONS?.labels||{plain:'极简线稿',tile:'圆角方块',abstract:'抽象符号',readable:'直观重绘'};
   const VALID_ICON_STYLES=new Set(Object.keys(ICON_STYLE_LABELS));
+  /* 顶栏形式：auto 跟随皮肤 / bar 吸顶通栏 / float 悬浮浮岛。 */
+  const BAR_SHAPE_LABELS={auto:'跟随皮肤',bar:'吸顶通栏',float:'悬浮浮岛'};
+  const VALID_BAR_SHAPES=new Set(Object.keys(BAR_SHAPE_LABELS));
+  const BAR_SHAPE_TIPS={
+    auto:'顶栏形状由当前皮肤决定（例如 Nocturne 是月牙浮岛，其余皮肤是吸顶通栏）。想让形状固定下来、换皮肤时不被带走，就选下面两档。',
+    bar:'贴顶、占满整宽的通栏，只有底边一条线。换成别的皮肤时只换配色，形状不变。',
+    float:'居中留白、四角圆润的浮岛，和窗口内容拉开距离。换成别的皮肤时只换配色，形状不变。'
+  };
   const SEGS=[
     {id:'navStyleSeg',ds:'navstyle',key:'navStyle'},
     {id:'navModeSeg',ds:'nav',key:'nav'},
     {id:'barLabelSeg',ds:'barlabel',key:'barLabels'},
     {id:'barStyleSeg',ds:'barstyle',key:'barStyle'},
+    {id:'barShapeSeg',ds:'barshape',key:'barShape'},
     {id:'iconStyleSeg',ds:'iconstyle',key:'iconStyle'}
   ];
-  const DEMO_ICONS=['grid','star','terminal','globe','lock','clock'];
+  /* 图标风格预览排版：用「形态图标」当样本，因为它们在 plain/abstract/readable
+     三档下是**三套不同的路径**，换风格时这里能立刻看出差别（旧样本多数只有配色变化）。 */
+  const DEMO_ICONS=['stack','flame','pin','puzzle','book-open','folder-question','keyhole','terminal'];
   const el=id=>document.getElementById(id);
   let prefs=null,tip=null;
 
@@ -2411,7 +3449,14 @@ connect();
     }catch(e){}
     if(prefs.iconStyle==='soft')prefs.iconStyle='abstract';
     if(prefs.iconStyle==='solid')prefs.iconStyle='readable';
+    /* 旧的柔和胶囊迁到弧形导航；信息卡片与圆形胶囊仍是可选版式。 */
+    if(prefs.navStyle==='pill')prefs.navStyle='arc';
+    if(!['card','rail','arc','orb'].includes(prefs.navStyle))prefs.navStyle=DEFAULTS.navStyle;
     if(!VALID_ICON_STYLES.has(prefs.iconStyle))prefs.iconStyle=DEFAULTS.iconStyle;
+    if(!VALID_BAR_SHAPES.has(prefs.barShape))prefs.barShape=DEFAULTS.barShape;
+    prefs.orbOpacity=Math.min(100,Math.max(20,Number(prefs.orbOpacity)||DEFAULTS.orbOpacity));
+    /* iconStyles 是逐分类覆盖表；被手改成非对象时只当「没设过」，交给 M4-MAIN 读全局档。 */
+    if(!prefs.iconStyles||typeof prefs.iconStyles!=='object')prefs.iconStyles={};
     return prefs;
   }
   function write(patch){
@@ -2419,17 +3464,28 @@ connect();
     try{localStorage.setItem(KEY,JSON.stringify(prefs))}catch(e){}
     apply();syncForm();
   }
-  /* 偏好 → body：CSS 只认这四个钩子。 */
+  /* 偏好 → body：CSS 只认这五个钩子。 */
   function apply(){
     const p=read(),body=document.body;
     body.classList.toggle('nav-compact',p.nav==='compact');
     body.dataset.navStyle=p.navStyle;
     body.classList.toggle('bar-labels',p.barLabels==='on');
     body.dataset.barStyle=p.barStyle;
+    body.dataset.barShape=p.barShape;
     body.dataset.iconStyle=p.iconStyle;
+    body.style.setProperty('--orb-button-fill',p.orbOpacity+'%');
+    /* 改全局档时，只有「没单独设过样式的分类」该跟着变：refreshIconGlyphs 会逐行重新
+       解析（见它内部的 categoryIconStyle），逐分类覆盖因此不会被全局档冲掉；
+       它同时负责顶栏、编辑器图标槽与设置面板预览。 */
     window.PWB_ICONS?.refresh?.();
     const toggle=document.querySelector('[data-action="toggle-nav"] .nav-text');
     if(toggle)toggle.textContent=p.nav==='compact'?'展开文字':'收起文字';
+  }
+  /* 改某一个分类自己的图标样式：写偏好 + 只重绘那一行（不重建整块导航）。 */
+  function setRowIconStyle(key,style){
+    window.PWB_ICONS.setStyle(key,style);
+    window.PWB_ICONS.refreshRows();
+    syncForm();
   }
   function note(text,bad){const box=el('settingsNotice');if(box){box.textContent=text||'';box.classList.toggle('bad',!!bad)}}
 
@@ -2495,18 +3551,167 @@ connect();
       grid.append(card);
     }
   }
-  /* 图标风格预览：把几枚图标按当前风格排一排，第三枚演示选中态。 */
+  /* 图标风格预览：把几枚图标按当前全局档排一排，第三枚演示选中态。 */
   function renderDemo(){
     const box=el('iconDemo');
     if(!box)return;
+    const p=read();
     box.replaceChildren();
     DEMO_ICONS.forEach((name,index)=>{
       const cell=document.createElement('span');
       cell.className='nav-icon'+(index===2?' demo-active':'');
       cell.dataset.iconName=name;
-      iconInto(cell,name);
+      cell.dataset.iconStyle=p.iconStyle;
+      iconInto(cell,name,p.iconStyle);
       box.append(cell);
     });
+  }
+  /* 每个分类自己的图标与图标样式：一行一个分类。
+     一行 = 分类名 + 当前图标（点它弹选择器）+ 四档样式按钮。
+     两处改动都只写本端偏好（图标名存不下后端，见 M4-MAIN 的 readIconNames）。
+     样式没有单独的「跟随全局」按钮：那等于删掉那条覆盖，再点一次已选中的档就是回到跟随全局。 */
+  function renderPerCategory(){
+    const box=el('perCategoryStyles');
+    if(!box)return;
+    closeIconPopover();
+    box.replaceChildren();
+    const rows=typeof sectionCategories==='function'?sectionCategories():[];
+    if(!rows.length){
+      const empty=document.createElement('p');
+      empty.className='tip';
+      empty.textContent='还没有分类：先新建一个分类，这里就会出现它。';
+      box.append(empty);
+      return;
+    }
+    for(const category of rows){
+      const row=document.createElement('div');row.className='per-cat-row';
+      const name=document.createElement('span');name.className='pname';
+      name.textContent=category.label;name.title=category.label;
+      /* 当前图标：点它弹出 PICKER_ICONS 那 60 枚。图标随该分类自己的档位呈现。 */
+      const iconName=categoryIcon(category);
+      const shown=window.PWB_ICONS.styleOf(category);
+      const pick=document.createElement('button');
+      pick.type='button';pick.className='pick-icon';
+      pick.title='换这个分类的图标';
+      pick.dataset.pickFor=category.key;
+      const cell=document.createElement('span');cell.className='nav-icon';
+      cell.dataset.iconStyle=shown;cell.dataset.iconName=iconName;
+      iconInto(cell,iconName,shown);
+      pick.append(cell);
+      pick.onclick=event=>{event.stopPropagation();openIconPopover(row,category,pick)};
+      const seg=document.createElement('div');seg.className='segmented';
+      buildIconStyleSeg(seg,shown,style=>{
+        /* 再点一次已选中的那一档＝取消覆盖、回到跟随全局（否则没有回头路）。
+           ⚠️ 必须**现查**该分类当前的覆盖值，不能在重建时把它存进闭包：
+           设置面板的重建相对点击是异步的，连点两次时闭包里那个值已经过期，
+           第二次点击会再写一遍而不是取消。 */
+        const current=window.PWB_ICONS.overrideOf(category);
+        setRowIconStyle(category.key,style===current?'':style);
+      },iconName,true);
+      seg.title='点一档只改这个分类；再点一次已选中的那一档＝跟随全局';
+      row.append(name,pick,seg);
+      /* 内置分类也要能改：这里不走后端的 rename/delete，纯前端偏好。 */
+      box.append(row);
+    }
+  }
+
+  /* ------------------------- 逐分类换图标的小弹层 -------------------------
+     浮层挂到 <body> 上、position:fixed（见 M4-CSS 的 .icon-pop 注释：挂在面板里会被 overflow 裁掉）。
+     打开时先把那一行滚进可视区，再按按钮的视口坐标现算位置——所以「打开哪个分类」不需要先手动滚。
+       · 空间不够时向上翻（翻转后位置算在按钮上方），并夹在窗口内
+       · 选中的那一枚用 .on 高亮；再点一次同一枚＝取消覆盖、回到自动解析的图标
+       · 顶部一个筛选框；全部用 DOM API 构造，没有内联 style（桌面端 CSP 会拦内联样式） */
+  const POP_W=290;          /* 与 CSS 里的 .icon-pop width 保持一致 */
+  const POP_TOP_ROOM=300;   /* 下方可用高度少于这个值就向上翻 */
+  let iconPop=null;
+  let iconPopKey='';        /* 当前弹层属于哪个分类（闭包变量，不靠 DOM 上的 dataset 回读） */
+  function closeIconPopover(){
+    if(iconPop){iconPop.remove();iconPop=null}
+    iconPopKey='';
+    document.querySelectorAll('.pick-icon.on').forEach(b=>b.classList.remove('on'));
+  }
+  /* 把触发按钮滚到设置面板滚动区的可视范围里（尽量靠上），再交出它的视口矩形。
+     设置面板的滚动容器是 .dialog-body（见 app-ui.md 5.4）。 */
+  function revealRow(button){
+    const box=button.closest('.dialog-body')||button.parentElement;
+    if(box){
+      const rowBox=button.getBoundingClientRect(),boxBox=box.getBoundingClientRect();
+      /* 行已经在可视区里就不动它，免得每次点都跳一下。 */
+      const outside=rowBox.top<boxBox.top+4||rowBox.bottom>boxBox.bottom-4;
+      if(outside)box.scrollTop+=(rowBox.top-boxBox.top)-12;
+    }
+    return button.getBoundingClientRect();
+  }
+  /* 按按钮位置放浮层：优先下方，空间不够翻到上方，左右夹在窗口内。 */
+  function placePopover(pop,button){
+    const box=revealRow(button);
+    const height=pop.offsetHeight||POP_TOP_ROOM;
+    const below=window.innerHeight-box.bottom-14;
+    const above=box.top-14;
+    let top=(below<Math.min(height,POP_TOP_ROOM)&&above>below)?box.top-height-6:box.bottom+6;
+    if(top<8)top=8;
+    if(top+height>window.innerHeight-8)top=Math.max(8,window.innerHeight-8-height);
+    let left=box.left-6;
+    if(left+POP_W>window.innerWidth-8)left=window.innerWidth-8-POP_W;
+    if(left<8)left=8;
+    pop.style.top=top+'px';
+    pop.style.left=left+'px';
+  }
+  function openIconPopover(row,category,button){
+    const key=category&&category.key;
+    /* 再点同一个按钮＝收起。这里比的是闭包里的 iconPopKey，不是弹层元素上的 dataset：
+       开关状态放在内存里，比「写进 DOM 再读回来」可靠，也不怕断言脚本读不到 dataset。 */
+    const reopen=!!iconPop&&iconPopKey===key;
+    closeIconPopover();
+    if(reopen)return;
+    button.classList.add('on');
+    const pop=document.createElement('div');
+    pop.className='icon-pop';
+    const head=document.createElement('div');head.className='pop-head';
+    const search=document.createElement('input');
+    search.type='search';search.placeholder='筛选图标名…';search.value='';
+    const clear=document.createElement('button');
+    clear.type='button';clear.className='secondary';
+    clear.textContent='回到自动';
+    clear.title='取消自己挑的图标，回到按分类名/类型自动解析';
+    head.append(search,clear);
+    const grid=document.createElement('div');grid.className='icon-pick';
+    const paint=()=>{
+      const current=window.PWB_ICONS.overrideNameOf(category);
+      const resolved=window.PWB_ICONS.iconOf(category);
+      /* 传 keyword 而不是筛好的数组：分组与「空组整块不渲染」都由 buildIconPicker 负责。 */
+      buildIconPicker(grid,current||resolved,()=>{},search.value);
+      /* buildIconPicker 只标记「等于传入值」的那一枚；这里要让「自己挑过」与
+         「自动解析到的那一枚」两种状态可区分：前者实心高亮，后者只给虚框。 */
+      for(const node of grid.querySelectorAll('button[data-icon-name]')){
+        const own=node.dataset.iconName===current;
+        node.classList.toggle('on',own);
+        node.classList.toggle('is-auto',!current&&node.dataset.iconName===resolved);
+        node.onclick=event=>{
+          if(event&&event.stopPropagation)event.stopPropagation();
+          window.PWB_ICONS.setIcon(category.key,node.dataset.iconName===current?'':node.dataset.iconName);
+          window.PWB_ICONS.refreshRows();
+          syncForm();                          /* 整段重建，预览格跟着换 */
+        };
+      }
+    };
+    search.oninput=paint;
+    search.onclick=event=>event.stopPropagation();
+    clear.onclick=event=>{
+      event.stopPropagation();
+      window.PWB_ICONS.setIcon(category.key,'');
+      window.PWB_ICONS.refreshRows();
+      syncForm();
+    };
+    pop.append(head,grid);
+    pop.onclick=event=>event.stopPropagation();
+    /* 挂到 body 而不是那一行：脱离设置面板的 overflow 裁剪，才能真正浮在最上层。 */
+    document.body.append(pop);
+    iconPop=pop;
+    iconPopKey=key;
+    paint();
+    /* 先滚到那一行，再定位（顺序不能反：滚动会改变按钮的视口坐标）。 */
+    placePopover(pop,button);
   }
   function paintStatus(){
     const box=el('settingsStatus'),main=el('status');
@@ -2515,18 +3720,33 @@ connect();
   /* 把偏好回填到设置面板的各个分段控件。 */
   function syncForm(){
     const p=read();
+    /* 全局那两组分段（含图标风格）由 buildIconStyleSeg 统一生成，按钮结构只存在一处。 */
     for(const seg of SEGS){
       const box=el(seg.id);
       if(!box)continue;
-      box.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset[seg.ds]===p[seg.key]));
+      if(seg.key==='iconStyle'){
+        /* 只在「选中项真的变了」时重建：否则点一下按钮就把自己重建掉，焦点与 :active 都会丢。 */
+        const shown=box.querySelector('button.on')?.dataset[seg.ds];
+        if(shown!==p.iconStyle)buildIconStyleSeg(box,p.iconStyle,style=>write({iconStyle:style}),DEMO_ICONS[0],true);
+      }else{
+        /* 其余几组是写在标记里的静态按钮，只同步选中态。 */
+        box.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset[seg.ds]===p[seg.key]));
+      }
     }
     const tipBox=el('navModeTip');
     if(tipBox)tipBox.textContent=(p.nav==='compact'
       ?'侧栏只留图标，宽度收到 68px；鼠标停上去会浮出名称。'
       :'图标和文字都显示。想贴边省地方就切成「只显示图标」。')+
-      ' 当前版式：'+({card:'信息卡片',pill:'柔和胶囊',rail:'悬浮导轨'}[p.navStyle]||'信息卡片')+'。';
+      ' 当前版式：'+({card:'信息卡片',rail:'悬浮导轨',arc:'弧形导航',orb:'圆形胶囊'}[p.navStyle]||'弧形导航')+'。';
+    const shapeTip=el('barShapeTip');
+    if(shapeTip)shapeTip.textContent=BAR_SHAPE_TIPS[p.barShape]||'';
+    const orbOpacity=el('orbOpacity'),orbOpacityOut=el('orbOpacityOut'),orbOpacityControl=el('orbOpacityControl');
+    if(orbOpacity)orbOpacity.value=p.orbOpacity;
+    if(orbOpacityOut)orbOpacityOut.value=orbOpacityOut.textContent=p.orbOpacity+'%';
+    if(orbOpacityControl)orbOpacityControl.hidden=p.navStyle!=='orb';
     renderSkins();
     renderDemo();
+    renderPerCategory();
   }
   function openSettings(){
     el('skinMenu').hidden=true;
@@ -2535,7 +3755,8 @@ connect();
     paintStatus();
     el('settingsModal').hidden=false;
   }
-  function closeSettings(){el('settingsModal').hidden=true}
+  /* 关面板时一定要收回浮层：它挂在 body 上，不跟着面板一起隐藏。 */
+  function closeSettings(){closeIconPopover();el('settingsModal').hidden=true}
 
   el('openSettings').onclick=openSettings;
   document.querySelectorAll('[data-action="settings"]').forEach(button=>{button.onclick=openSettings});
@@ -2546,6 +3767,7 @@ connect();
   el('settingsDone').onclick=closeSettings;
   el('settingsModal').onclick=event=>{if(event.target===el('settingsModal'))closeSettings()};
   el('settingsCustomSkin').onclick=()=>{closeSettings();window.PWB_SKIN.openCustom()};
+  el('orbOpacity').oninput=event=>write({orbOpacity:Number(event.target.value)});
   /* 顶栏图标：上传 / 恢复默认都由 M4-MAIN 的 PWB_BRAND 处理，它自己回报状态。 */
   el('settingsBrandPick').onclick=()=>window.PWB_BRAND.pick();
   el('settingsBrandReset').onclick=()=>window.PWB_BRAND.reset();
@@ -2570,11 +3792,20 @@ connect();
       if(button)write({[seg.key]:button.dataset[seg.ds]});
     });
   }
-  /* M4-MAIN / M4-SKIN 的 Escape 只管各自的弹窗，设置面板在这里补上。 */
+  /* M4-MAIN / M4-SKIN 的 Escape 只管各自的弹窗，设置面板在这里补上。
+     逐分类的换图标弹层优先：它开着时先关它，不要把整个设置面板关掉。 */
   document.addEventListener('keydown',event=>{
-    if(event.key==='Escape'&&!el('settingsModal').hidden)closeSettings();
+    if(event.key!=='Escape')return;
+    if(iconPop){closeIconPopover();return}
+    if(!el('settingsModal').hidden)closeSettings();
   });
-  /* 皮肤在别处被换掉（顶栏菜单 / 自定义外观）时，设置面板里的选中态跟着走。 */
+  /* 点设置面板里别处（或面板外）就收起换图标弹层。
+     弹层与触发按钮自己的 click 都做过 stopPropagation，所以不会刚开就被这里关掉。 */
+  document.addEventListener('click',()=>{if(iconPop)closeIconPopover()});
+  /* 面板滚动时也收起：浮层是 fixed 的、不跟着内容滚，
+     让它跟按钮错位飘着比直接收起来更让人困惑（想再开一下就行）。 */
+  document.addEventListener('scroll',()=>{if(iconPop)closeIconPopover()},true);
+  window.addEventListener('resize',()=>{if(iconPop)closeIconPopover()});
   window.addEventListener('pwb:skin',renderSkins);
 
   apply();

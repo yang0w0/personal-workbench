@@ -22,15 +22,17 @@
 
 mod shortcut;
 
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::env;
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use shortcut::{read_icon_data_url, read_shortcut};
 
@@ -74,6 +76,9 @@ struct Item {
     icon: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     order: Option<u64>,
+    /// 仅「应用」类型中的 Windows 商店应用：存储 AUMID（如 OpenAI.Codex_xxx!App）。
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "uwpAppId")]
+    uwp_app_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -885,6 +890,105 @@ fn has_scheme(s: &str) -> bool {
     i < b.len() && b[i] == b':' && i + 2 < b.len() && b[i + 1] == b'/' && b[i + 2] == b'/'
 }
 
+/* ---------------- 网页图标（只读取用户输入的 HTTP/HTTPS 地址） ---------------- */
+const LINK_ICON_TIMEOUT: Duration = Duration::from_secs(6);
+const LINK_ICON_MAX_BYTES: usize = 512 * 1024;
+
+fn link_tag_attribute(tag: &str, name: &str) -> Option<String> {
+    let lower = tag.to_ascii_lowercase();
+    let needle = format!("{}=", name);
+    let index = lower.find(&needle)? + needle.len();
+    let rest = tag.get(index..)?.trim_start();
+    if let Some(value) = rest.strip_prefix('"') { return value.find('"').map(|end| value[..end].to_string()); }
+    if let Some(value) = rest.strip_prefix('\'') { return value.find('\'').map(|end| value[..end].to_string()); }
+    rest.split_whitespace().next().map(|value| value.trim_end_matches('>').to_string())
+}
+
+fn link_icon_score(tag: &str, rel: &str) -> i32 {
+    let sizes = link_tag_attribute(tag, "sizes").unwrap_or_default();
+    let icon_type = link_tag_attribute(tag, "type").unwrap_or_default();
+    if sizes.to_ascii_lowercase().split_whitespace().any(|size| size == "any")
+        || icon_type.to_ascii_lowercase().contains("svg") { return 1_000_000; }
+    sizes.split_whitespace().filter_map(|size| {
+        let (width, height) = size.split_once('x')?;
+        Some(width.parse::<i32>().ok()?.max(height.parse::<i32>().ok()?))
+    }).max().unwrap_or(0).max(if rel.contains("apple-touch-icon") { 180 } else { 0 })
+}
+
+fn link_icon_candidates(html: &str, page_url: &str) -> Vec<String> {
+    let mut candidates: Vec<(i32, String)> = Vec::new();
+    let lower = html.to_ascii_lowercase();
+    let mut start = 0;
+    while let Some(relative) = lower[start..].find("<link") {
+        let offset = start + relative;
+        let Some(end_relative) = lower[offset..].find('>') else { break };
+        let end = offset + end_relative + 1;
+        let tag = &html[offset..end];
+        let rel = link_tag_attribute(tag, "rel").unwrap_or_default().to_ascii_lowercase();
+        if rel.split_whitespace().any(|part| part == "icon") || rel.contains("apple-touch-icon") {
+            if let (Some(href), Ok(base)) = (link_tag_attribute(tag, "href"), reqwest::Url::parse(page_url)) {
+                if let Ok(resolved) = base.join(&href) {
+                    if matches!(resolved.scheme(), "http" | "https") {
+                        candidates.push((link_icon_score(tag, &rel), resolved.into()));
+                    }
+                }
+            }
+        }
+        start = end;
+    }
+    if let Ok(page) = reqwest::Url::parse(page_url) { candidates.push((-1, format!("{}/favicon.ico", page.origin().ascii_serialization()))); }
+    candidates.sort_by(|a, b| b.0.cmp(&a.0));
+    let mut seen = std::collections::HashSet::new();
+    candidates.into_iter().filter_map(|(_, url)| seen.insert(url.clone()).then_some(url)).collect()
+}
+
+fn read_limited(response: &mut reqwest::blocking::Response, max: usize) -> Result<Vec<u8>, String> {
+    if response.content_length().is_some_and(|size| size > max as u64) { return Err("图标文件太大。".into()); }
+    let mut bytes = Vec::new();
+    response.take((max + 1) as u64).read_to_end(&mut bytes).map_err(|e| format!("读取网站响应失败：{}", e))?;
+    if bytes.len() > max { return Err("图标文件太大。".into()); }
+    Ok(bytes)
+}
+
+fn remote_get(client: &reqwest::blocking::Client, url: &str, accept: &str) -> Result<(reqwest::blocking::Response, String), String> {
+    let mut current = url.to_string();
+    for _ in 0..=3 {
+        let response = client.get(&current).header("Accept", accept).header("User-Agent", "PersonalWorkbench/1.0").send().map_err(|e| format!("无法连接网站：{}", e))?;
+        if response.status().is_redirection() {
+            let location = response.headers().get(reqwest::header::LOCATION).and_then(|value| value.to_str().ok()).ok_or("网站跳转地址无效。")?;
+            current = reqwest::Url::parse(&current).and_then(|base| base.join(location)).map_err(|_| "网站跳转地址无效。")?.into();
+            if !current.starts_with("http://") && !current.starts_with("https://") { return Err("图标地址不是 HTTP 或 HTTPS。".into()); }
+            continue;
+        }
+        if !response.status().is_success() { return Err(format!("网站返回 {}。", response.status())); }
+        return Ok((response, current));
+    }
+    Err("网站跳转次数过多。".into())
+}
+
+fn fetch_link_icon_for(url: &str) -> Result<Value, String> {
+    let page_url = normalize_url(url).ok_or("请输入有效的 http 或 https 网址。")?;
+    let client = reqwest::blocking::Client::builder().timeout(LINK_ICON_TIMEOUT).redirect(reqwest::redirect::Policy::none()).build().map_err(|e| format!("无法初始化网页读取：{}", e))?;
+    let (mut page, page_url) = remote_get(&client, &page_url, "text/html,application/xhtml+xml")?;
+    let page_type = page.headers().get(reqwest::header::CONTENT_TYPE).and_then(|value| value.to_str().ok()).unwrap_or("").to_ascii_lowercase();
+    /* 首页 HTML 可能远大于图标解析所需的 256 KiB。超限时不把它当作整个请求失败，
+       直接跳过声明图标解析，继续尝试每个站点都应支持的 /favicon.ico 回退。 */
+    let html = if page_type.contains("html") {
+        read_limited(&mut page, 256 * 1024)
+            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+            .unwrap_or_default()
+    } else { String::new() };
+    for candidate in link_icon_candidates(&html, &page_url) {
+        let Ok((mut image, source)) = remote_get(&client, &candidate, "image/avif,image/webp,image/png,image/svg+xml,image/x-icon,image/*;q=0.8,*/*;q=0.5") else { continue };
+        let mime = image.headers().get(reqwest::header::CONTENT_TYPE).and_then(|value| value.to_str().ok()).unwrap_or("").split(';').next().unwrap_or("").trim().to_ascii_lowercase();
+        if !mime.starts_with("image/") { continue; }
+        let Ok(bytes) = read_limited(&mut image, LINK_ICON_MAX_BYTES) else { continue };
+        if bytes.is_empty() { continue; }
+        return Ok(json!({ "icon": format!("data:{};base64,{}", mime, base64::engine::general_purpose::STANDARD.encode(bytes)), "source": source }));
+    }
+    Err("没有找到可用的网站图标。".into())
+}
+
 /* ----------------------------- 扫描 ----------------------------- */
 
 fn scan(catalog: &mut Catalog) -> Result<(Vec<Item>, Vec<Item>), String> {
@@ -966,6 +1070,7 @@ fn scan(catalog: &mut Catalog) -> Result<(Vec<Item>, Vec<Item>), String> {
                 last_opened_at: String::new(),
                 icon: None,
                 order: None,
+                uwp_app_id: None,
             };
 
             if category.inbox {
@@ -1054,6 +1159,9 @@ struct DeleteCategoryInput {
 struct ShortcutDetailInput {
     path: String,
 }
+
+#[derive(Deserialize)]
+struct LinkIconInput { url: String }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1430,9 +1538,91 @@ fn collect_shortcuts() -> Vec<ShortcutEntry> {
         };
         walk_shortcuts(root, &mut found, &group, 0);
     }
+    // 同时收集 Windows 商店应用（UWP/MSIX），它们没有 .lnk 快捷方式。
+    for uwp in collect_uwp_apps() {
+        let key = uwp.name.to_lowercase();
+        if !found.contains_key(&key) {
+            found.insert(key, uwp);
+        }
+    }
     let mut list: Vec<ShortcutEntry> = found.into_values().collect();
     list.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
     list
+}
+
+/// 收集 Windows 商店应用（UWP/MSIX）。
+/// 通过 PowerShell 的 Get-StartApps 枚举，筛选出 AUMID 格式的应用。
+fn collect_uwp_apps() -> Vec<ShortcutEntry> {
+    let tmp_dir = std::env::temp_dir();
+    let tmp_file = tmp_dir.join(format!("pwsh-uwp-{}-{}.txt", std::process::id(), chrono_now()));
+    let safe_path = tmp_file.to_string_lossy().replace('\'', "''");
+    let ps_cmd = format!(
+        "Get-StartApps | ForEach-Object {{ $_.Name + \"`t\" + $_.AppID }} | Out-File -FilePath '{}' -Encoding utf8",
+        safe_path
+    );
+    let result = Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &ps_cmd])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output();
+    match result {
+        Ok(output) if output.status.success() => {}
+        _ => {
+            let _ = std::fs::remove_file(&tmp_file);
+            return Vec::new();
+        }
+    }
+    let text = match std::fs::read_to_string(&tmp_file) {
+        Ok(t) => {
+            let _ = std::fs::remove_file(&tmp_file);
+            t.trim_start_matches('\u{FEFF}').to_string()
+        }
+        Err(_) => return Vec::new(),
+    };
+    let mut list = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Some(tab_pos) = trimmed.rfind('\t') {
+            let name = trimmed[..tab_pos].trim().to_string();
+            let app_id = trimmed[tab_pos + 1..].trim().to_string();
+            // UWP 应用的 AppID 包含 '!'（格式：PackageFamilyName!AppName），且不是文件路径。
+            if !app_id.contains('!') {
+                continue;
+            }
+            if is_absolute_drive_path(&app_id) {
+                continue;
+            }
+            if seen.contains(&app_id) {
+                continue;
+            }
+            seen.insert(app_id.clone());
+            list.push(ShortcutEntry {
+                name,
+                path: format!("shell:AppsFolder\\{}", app_id),
+                group: "商店应用".to_string(),
+            });
+        }
+    }
+    list
+}
+
+/// 判断路径是否以盘符开头（如 C:\...）。
+fn is_absolute_drive_path(s: &str) -> bool {
+    let bytes = s.as_bytes();
+    bytes.len() >= 3 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' && (bytes[2] == b'\\' || bytes[2] == b'/')
+}
+
+/// 生成简单时间戳用于临时文件名。
+fn chrono_now() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0)
 }
 
 #[tauri::command]
@@ -1440,10 +1630,66 @@ fn list_shortcuts() -> Value {
     json!({ "shortcuts": collect_shortcuts() })
 }
 
+/// 从已安装的 Microsoft Store 应用包中读取其清单声明的方形图标。
+/// AUMID 的包族名只允许 Windows 包标识使用的字符，避免拼接到 PowerShell 时注入命令。
+fn uwp_icon_data_url(aumid: &str) -> String {
+    let family = aumid.split('!').next().unwrap_or_default();
+    if family.is_empty()
+        || !family
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+    {
+        return String::new();
+    }
+    let script = format!(
+        "$pkg = Get-AppxPackage | Where-Object {{ $_.PackageFamilyName -eq '{}' }} | Select-Object -First 1; \
+         if ($null -eq $pkg) {{ exit 0 }}; \
+         $manifest = Join-Path $pkg.InstallLocation 'AppxManifest.xml'; \
+         if (!(Test-Path -LiteralPath $manifest)) {{ exit 0 }}; \
+         $xml = Get-Content -Raw -LiteralPath $manifest; \
+         $match = [regex]::Match($xml, 'Square44x44Logo\\s*=\\s*\"([^\"]+)\"'); \
+         if ($match.Success) {{ $icon = Join-Path $pkg.InstallLocation $match.Groups[1].Value; if (Test-Path -LiteralPath $icon) {{ [Console]::Out.Write($icon) }} }}",
+        family
+    );
+    let output = match Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+    {
+        Ok(output) if output.status.success() => output,
+        _ => return String::new(),
+    };
+    let icon_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if icon_path.is_empty() {
+        String::new()
+    } else {
+        read_icon_data_url("", 0, &icon_path)
+    }
+}
+
 #[tauri::command]
 fn shortcut_detail(input: ShortcutDetailInput) -> Result<Value, String> {
     let target = &input.path;
-    if target.is_empty() || !Path::new(target).exists() {
+    if target.is_empty() {
+        return Err("文件不存在。".into());
+    }
+    // Microsoft Store 应用以 shell:AppsFolder\<AUMID> 表示，而不是磁盘上的
+    // .lnk 文件。它们不能通过 Path::exists() 判断，但可以直接作为应用目标保存。
+    if target.starts_with("shell:AppsFolder\\") {
+        let aumid = &target["shell:AppsFolder\\".len()..];
+        return Ok(json!({
+            "icon": uwp_icon_data_url(aumid),
+            "detail": {
+                "target": target,
+                "targetExists": true,
+                "arguments": "",
+                "workingDirectory": "",
+                "iconLocation": ""
+            }
+        }));
+    }
+    if !Path::new(target).exists() {
         return Err("文件不存在。".into());
     }
     let ext = Path::new(target)
@@ -1470,6 +1716,9 @@ fn shortcut_detail(input: ShortcutDetailInput) -> Result<Value, String> {
 }
 
 /* ----------------------------- 条目增删改 ----------------------------- */
+
+#[tauri::command]
+fn fetch_link_icon(input: LinkIconInput) -> Result<Value, String> { fetch_link_icon_for(&input.url) }
 
 #[tauri::command]
 fn create_item(input: CreateItemInput) -> Result<Value, String> {
@@ -1519,6 +1768,7 @@ fn create_item(input: CreateItemInput) -> Result<Value, String> {
         last_opened_at: String::new(),
         icon: input.icon.filter(|x| x.len() <= 2 * 1024 * 1024),
         order: None,
+        uwp_app_id: None,
     };
 
     if category.kind == "script" {
@@ -1553,19 +1803,29 @@ fn create_item(input: CreateItemInput) -> Result<Value, String> {
         } else {
             input.target.clone()
         };
-        if source.is_empty() || !Path::new(&source).exists() {
-            return Err("找不到该程序或快捷方式文件。".into());
-        }
-        apply_shortcut_metadata(&mut item, Path::new(&source), true, &category.folder);
-        if item.target.is_none() {
-            item.target = Some(source.clone());
-        }
-        if item.title.is_empty() {
-            item.title = Path::new(&source)
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("")
-                .to_string();
+        // Windows 商店应用：路径以 shell:AppsFolder\ 开头，不需要复制 .lnk。
+        if source.starts_with("shell:AppsFolder\\") {
+            let aumid = source["shell:AppsFolder\\".len()..].to_string();
+            item.target = Some(source);
+            item.uwp_app_id = Some(aumid.clone());
+            if item.title.is_empty() {
+                item.title = aumid.split('!').next().unwrap_or("商店应用").to_string();
+            }
+        } else {
+            if source.is_empty() || !Path::new(&source).exists() {
+                return Err("找不到该程序或快捷方式文件。".into());
+            }
+            apply_shortcut_metadata(&mut item, Path::new(&source), true, &category.folder);
+            if item.target.is_none() {
+                item.target = Some(source.clone());
+            }
+            if item.title.is_empty() {
+                item.title = Path::new(&source)
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("")
+                    .to_string();
+            }
         }
     } else {
         // file
@@ -1843,6 +2103,28 @@ fn start_detached(target: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// 启动 Windows 商店应用（UWP/MSIX），通过 explorer.exe shell:AppsFolder\<AUMID>。
+fn start_uwp(aumid: &str) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let path = format!("shell:AppsFolder\\{}", aumid);
+        Command::new("explorer.exe")
+            .arg(&path)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .creation_flags(0x0000_0008)
+            .spawn()
+            .map_err(|e| format!("无法启动商店应用：{}", e))?;
+    }
+    #[cfg(not(windows))]
+    {
+        return Err("商店应用仅支持 Windows".into());
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn open_item(input: OpenItem) -> Result<Value, String> {
     let mut catalog = read_catalog();
@@ -1885,6 +2167,15 @@ fn open_item(input: OpenItem) -> Result<Value, String> {
             u.to_string()
         }
         "app" => {
+            // Windows 商店应用：通过 AUMID 启动，不走文件系统。
+            if let Some(ref uwp_id) = catalog.items[idx].uwp_app_id {
+                start_uwp(uwp_id)?;
+                catalog.items[idx].open_count += 1;
+                catalog.items[idx].last_opened_at = now();
+                catalog.items[idx].updated_at = now();
+                write_catalog(&catalog)?;
+                return Ok(json!({ "ok": true }));
+            }
             let sp = catalog.items[idx].source_path.as_deref().and_then(source_join);
             let shortcut = sp.filter(|p| p.is_file());
             // 优先启动复制进来的 .lnk（启动参数/工作目录/管理员标记都原样保留）。
@@ -1953,6 +2244,7 @@ fn main() {
             delete_category,
             list_shortcuts,
             shortcut_detail,
+            fetch_link_icon,
             create_item,
             complete_metadata,
             update_item,

@@ -15,7 +15,7 @@
 | `app/index.html` | ❌ 属于 `M4`。**改了前端必须重新编译 exe 才在客户端生效** |
 | `server/` | ❌ 属于 `M1`/`M2`。桌面端不复用它们 |
 
-**不允许**：使用固定盘符/用户名/安装目录（必须保持便携）；开启 `bundle.active`（当前是便携模式，只产出 exe）；在 `main.rs` 里实现网络请求。
+**不允许**：使用固定盘符/用户名/安装目录（必须保持便携）；开启 `bundle.active`（当前是便携模式，只产出 exe）；除本文档列出的、由用户主动输入网址触发的图标预览外，不要在 `main.rs` 新增任意联网行为。
 
 ---
 
@@ -23,7 +23,7 @@
 
 前端通过 `window.__TAURI__.core.invoke('<命令>', { input })` 调用。`nativeInvoke` 存在即走本通道，因此**浏览器版的 HTTP 契约与这里的命令名必须语义一致**。
 
-### 1. IPC 命令清单（17 个）
+### 1. IPC 命令清单（18 个）
 
 | 命令 | 入参 | 返回 | 对应 HTTP 接口 |
 | --- | --- | --- | --- |
@@ -37,6 +37,7 @@
 | `delete_category` | `{ input: { key, force?, removeFolder? } }` | `{ ok: true, categories }` | `POST /api/categories/delete` |
 | `list_shortcuts` | — | `{ shortcuts }` | `GET /api/shortcuts` |
 | `shortcut_detail` | `{ input: { path } }` | `{ shortcut }` | `GET /api/shortcuts/icon` |
+| `fetch_link_icon` | `{ input: { url } }` | `{ icon, source }` | `POST /api/links/icon` |
 | `create_item` | `{ input: NewItem }` | `{ item, categories }` | `POST /api/items` |
 | `complete_metadata` | `{ input: { id, category, title, description, tags, ... } }` | `{ item, categories }` | `POST /api/items/metadata` |
 | `hide_item` | `{ input: { id } }` | `{ item }` | `POST /api/items/hide` |
@@ -85,7 +86,7 @@
  'POST /scan':'scan_items','POST /categories':'create_category','POST /categories/update':'update_category',
  'POST /categories/delete':'delete_category','POST /items':'create_item','POST /items/metadata':'complete_metadata',
  'POST /items/hide':'hide_item','POST /items/open':'open_item','POST /items/update':'update_item',
- 'POST /items/delete':'delete_item','POST /items/reorder':'reorder_items'}
+ 'POST /items/delete':'delete_item','POST /items/reorder':'reorder_items','POST /links/icon':'fetch_link_icon'}
 ```
 
 - 新增 HTTP 路径时，**必须同时在 `M4` 的这张表里加映射**，否则浏览器版能用、桌面版会 `invoke(undefined)` 失败。
@@ -188,4 +189,6 @@ pub fn read_icon_data_url(icon_location: &str, icon_index: i32, target: &str) ->
 | 2026-09-20 | **与浏览器端契约统一**：`Catalog` 增加 `categories`（修掉写回丢分类的高风险 bug）；`Item` 增加 `target`/`arguments`/`working_directory`/`icon_location`（`url` 保留为只读兼容）；`default_categories()` 与 `M1` 对齐为同一套五个分类；`scan()` 改为按 `catalog.categories` 的 `folder` 遍历；IPC 命令补齐到 16 个并与前端 `IPC_MAP` 一一对应；`shortcut.rs` 接线参与编译。已修复项移入「已修复」留档，仅剩时间戳格式未收敛。 |
 | 2026-09-21 | 与 `M1` 对齐：`default_categories()` 新增第 5 项内置分类「文件夹」（`kind` 仍是 `file`），并给 `read_catalog()` 补上同样的**内置分类按 `key`/`folder` 补齐**逻辑（原先只补收件箱，新增的内置分类对已有 `catalog.json` 不可见）。同时修正本节 `ensure_directories()` 的描述——它实际是按 `catalog.categories` 的 `folder` 逐个创建，而不是写死的五个目录。 |
 | 2026-09-21 | 同步实际 IPC 清单：分类管理、快捷方式、浏览器探测与完整四类条目能力均已接线；`get_items`/`scan_items` 也会返回分类。补充 `POST /categories/update → update_category` 映射，供前端持久化侧栏分类排序。 |
+| 2026-09-21 | 新增 `fetch_link_icon`（对应 `POST /api/links/icon`）：仅在用户输入网址时读取 HTTP/HTTPS 网页图标，解析声明图标后回退 `/favicon.ico`，并限制为 6 秒、3 次跳转、512 KiB。返回 data URL，不改变 `Item` 数据契约；网页 HTML 超过解析上限时跳过页面解析、仍继续走 `/favicon.ico` 回退。 |
 | 2026-09-21 | 与 `M1` 同步合并内置「文档」与「文件夹」为「文件」（`key: file`）。`read_catalog()` 会将旧 `folder` 条目迁移到 `file`、移除旧分类，并忽略遗留的 `data/文件夹/` 空目录；文件与目录继续共用 `file` 的打开逻辑。 |
+| 2026-09-22 | `fetch_link_icon` 与 HTTP 端同步：网页声明多个图标时按 `sizes`、SVG 与 Apple Touch 优先级选择较高清的候选，再回退 `/favicon.ico`。命令入参、返回字段与联网边界不变。 |

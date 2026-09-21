@@ -42,7 +42,7 @@
 | `label` | string | ✅ | 界面显示名，最长 24 字符 |
 | `folder` | string | ✅ | 对应的 `data/` 下文件夹名，最长 24 字符，已过滤 `<>:"/\|?*` 与控制字符 |
 | `kind` | `script` \| `link` \| `app` \| `file` \| `inbox` | ✅ | 决定编辑器长什么样、怎么打开 |
-| `symbol` | string | ✅ | 侧边栏图标。**后端一律截到 2 字符**（`M1`/`M3` 的 `normalizeCategory` 都写了 `.slice(0, 2)`）。历史上它是字符型占位符号（`▤` `◆` `↗`）；前端现在的渲染顺序是：能认出图标名就用图标 → 否则按名称关键词猜 → 再否则用该分类 `kind` 的默认图标（见 [app-ui.md](app-ui.md#54-内置图标集)）。所以**「给分类挑一个图标」目前只在名称关键词命中时才生效**，要让任意图标名存下来，得先放宽后端这两处长度限制（属 `M1`/`M3` 变更，见 [INTERFACES.md](../INTERFACES.md) 第 6 节） |
+| `symbol` | string | ✅ | 侧边栏图标。**后端一律截到 2 字符**（`M1`/`M3` 的 `normalizeCategory` 都写了 `.slice(0, 2)`）。历史上它是字符型占位符号（`▤` `◆` `↗`）；前端现在的渲染顺序是：能认出图标名就用图标 → 否则按名称关键词猜 → 再否则用该分类 `kind` 的默认图标（见 [app-ui.md](app-ui.md#55-内置图标集)）。所以**「给分类挑一个图标」目前只在名称关键词命中时才生效**，要让任意图标名存下来，得先放宽后端这两处长度限制（属 `M1`/`M3` 变更，见 [INTERFACES.md](../INTERFACES.md) 第 6 节） |
 | `note` | string | ✅ | 区块副标题，最长 40 字符 |
 | `order` | number | ✅ | 展示顺序 |
 | `builtin` | boolean | ✅ | 内置分类，**不可删除**，不可改 `kind` |
@@ -65,6 +65,10 @@
 > 「文件」分类既可收录 `data/文档/` 里扫描到的文件，也可收录任意本地文件或目录的绝对路径（放在 `target`，不写 `sourcePath`）。目录会由资源管理器打开；这类绝对路径条目不会被扫描的失效清理误删。旧版 `folder` 分类及其条目在读取索引时会迁移到 `file`；遗留的 `data/文件夹/` 目录不会再被自动收编为分类。
 >
 > 两端的默认分类现在是同一套（含 `应用`/`文件`）。除此之外，`M1` 与 `M3` 在读取时都会**扫描 `data/` 下已存在的文件夹并补登为分类**，所以用户自建的 `密码库`/`备份` 等目录也会出现在索引里（它们只是空分类，不带计数徽标）。
+>
+> **「合并包」不是一个新字段，而是分类的一种用法**（前端 `isPackage()` 认它）：把几条内容收进一个包 = 建一个普通分类（`builtin: false`、`kind` 与成员一致），再把那些条目的 `category` 改挂过去。为了不改 `M0` 契约，包的标记借用两个既有字段——建包时写 `symbol: 'pk'`（**恰好 2 个字符，正好穿过两端 `normalizeCategory` 的 `.slice(0,2)` / `.chars().take(2)`**）并以 `note: '合并包 · 点开查看内容'` 开头，前端渲染成一张文件夹卡（见 [app-ui.md](app-ui.md#3-渲染契约数据-界面)）。也正因为 `symbol` 只有 2 个字符，**合并包目前不支持自选图标**（统一用 `folder` 图标），要支持得先放宽那两处长度限制（见 [INTERFACES.md](../INTERFACES.md) 第 6 节）。
+>
+> **解散包 = 把成员退回同类内置分类 + 删除这个分类**（`removeFolder: true`）。⚠️ 必须带 `removeFolder`：只有 `.gitkeep` 的空目录如果留在 `data/` 下，会被读取时的「扫描 `data/` 补登分类」重新收编成一个分类。
 
 ### 3. `Item`（条目）
 
@@ -86,6 +90,7 @@
 | `openCount` | number | ✅ | 打开次数，用于「常用」排序 |
 | `lastOpenedAt` | string | ✅ | 最近打开时间，空串表示从未打开 |
 | `order` | number | ⬜ | 手动拖拽排序序号。**注意它是全体条目共用的一维空间**，见 [6.2](../INTERFACES.md#62-排序序号-order-是全体共用的一维空间低风险部分存在) |
+| `uwpAppId` | string | ⬜ | **仅 `app` 类型中的 Windows 商店应用**：存储 AUMID（如 `OpenAI.Codex_xxx!App`）。有此字段时 `target` 为 `shell:AppsFolder\<AUMID>`，启动走 `explorer.exe shell:AppsFolder\<AUMID>` 而非文件系统 |
 
 ### 4. `status` 状态机
 
@@ -150,4 +155,5 @@
 | 2026-09-20 | 同步三端统一后的语义：两端默认分类改为同一套（含 `应用`/`文档`）；扫描改为按 `catalog.categories` 的 `folder` 动态遍历并按 `kind` 补信息；`url` 降级为只读兼容字段（两端都迁移成 `target`）；无图标时的占位由 `▣`/`↗` 符号改为字母头像；补充应用图标的两处写入尺寸（前端 128px PNG / 后端 64px 兜底）。 |
 | 2026-09-21 | `Item` 新增可选字段 `browser`（**仅 `link` 类型使用**）：空串/缺省 = 跟随系统默认浏览器，否则存浏览器 key 或 exe 绝对路径。三端同步：`M1` 的 `/api/items`、`/api/items/update`、`/api/items/metadata` 都接收该字段（`update` 传空即清掉），`/api/items/open` 按它启动并在浏览器缺失时回落；`M3` 对应 IPC 命令同步（空值同样清掉）；`M4` 编辑器在「网址」类型下新增「用哪个浏览器打开」下拉。两端各自新增本机浏览器探测接口（`GET /api/browsers` / `list_browsers`），候选表以 `M1` 的 `BROWSERS` 为准，`M3` 的 `browser_specs()` 与之逐条对应。 |
 | 2026-09-21 | 新增内置分类「文件夹」（`key: folder` / `folder: 文件夹` / `kind: file` / `order: 4`），用于「一键跳到本地某个文件夹」。同时给 `M1`/`M3` 的读取逻辑补上**内置分类补齐**——原先只有 `categories` 整段缺失时才回落到默认表，于是**后加的内置分类对已有 `catalog.json` 完全不可见**；现在按 `key`（或同名 `folder`）补齐，已存在则跳过。条目语义：只存 `target` 绝对路径、不写 `sourcePath`，点击由系统资源管理器打开。 |
-| 2026-09-21 | **合并「文档」与「文件夹」为内置分类「文件」**（`key: file` / `folder: 文档` / `kind: file`）。文件与目录都通过同一条本地路径打开；读取旧索引时，`M1`/`M3` 会移除旧 `folder` 分类并将其条目改归 `file`，同时忽略遗留的 `data/文件夹/` 空目录，避免它重新成为自建分类。 |
+| 2026-09-21 | **新增「合并包」的用法约定（`M0` 契约本身没有变化）**：一个包 = 一个普通分类（`builtin: false`、`kind` 与成员一致），成员条目的 `category` 指向它；标记借 `symbol: 'pk'` + `note` 前缀「合并包」，`symbol` 恰好 2 个字符、不受两端 `normalizeCategory` 截断影响。包里的**磁盘文件不搬**：`M1`/`M3` 的 `/items/metadata` 对非收件箱条目只改 `category`，所以「应用」包里的 `.lnk` 仍留在 `data/应用/`、`sourcePath` 继续有效、扫描不会重复收录。解散＝成员退回同类内置分类后 `removeFolder: true` 删掉那个空分类目录（见第 2 节的说明）。 |
+| 2026-09-21 | `Item` 新增可选字段 `uwpAppId`（仅 `app` 类型中的 Windows 商店应用）：存 AUMID（如 `OpenAI.Codex_xxx!App`），`target` 对应 `shell:AppsFolder\<AUMID>`。`M1`/`M3` 的应用清单扫描现在同时通过 PowerShell `Get-StartApps` 枚举商店应用（`group` 为 `商店应用`），创建时不复制 `.lnk`，启动走 `explorer.exe shell:AppsFolder\<AUMID>`。 |

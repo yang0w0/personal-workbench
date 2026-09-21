@@ -44,6 +44,14 @@
 
 `Browser` = `{ key, label, path }`：**本机已安装的浏览器**，`key` 是内置标识（`chrome` / `edge` / `firefox` / `brave` / `vivaldi` / `opera` / `chromium`），`path` 是 exe 绝对路径。表来自 `server.js` 顶部的 `BROWSERS` 常量（按 `ProgramFiles` / `ProgramFiles(x86)` / `LOCALAPPDATA` 拼路径逐个探存在性）。**它不包含「系统默认浏览器」**——条目的 `browser` 为空即代表跟随系统默认，所以调用方只需要在列表前面自己加一个「跟随系统默认」选项。非 Windows 平台返回空数组。
 
+### 1.1 网址图标预览
+
+| 方法 | 路径 | 请求 | 响应 | 错误 |
+| --- | --- | --- | --- | --- |
+| `POST` | `/api/links/icon` | `{ url }` | `{ icon, source }` | `400` 网址无效、超时或没有可用图标 |
+
+只读取用户刚输入的 `http(s)` 网址：先解析网页的 `<link rel="icon">` / `apple-touch-icon`，按 `sizes` / SVG / Apple Touch 声明优先选择高清版本，再回退到站点根目录的 `/favicon.ico`。请求超时 6 秒、最多跟随 3 次跳转，网页正文最多 256 KiB、图标最多 512 KiB；返回的 `icon` 是临时 data URL，前端会压缩后才写进条目的既有 `icon` 字段。
+
 ### 2. 分类管理
 
 | 方法 | 路径 | 请求 | 响应 | 错误 |
@@ -66,8 +74,9 @@
 | `GET` | `/api/shortcuts` | — | `{ shortcuts: [{ name, path, group }] }` | — |
 | `GET` | `/api/shortcuts/icon?path=<绝对路径>` | query `path` | `{ icon, detail? }` | `404` 文件不存在；`400` 不支持的类型 |
 
-- 扫描范围：开始菜单（当前用户 + 所有用户）、桌面（当前用户 + 公共），深度上限 5 层，按文件名去重，按名称中文排序。`group` 取值 `桌面` / `所有用户` / `当前用户`。
-- `icon` 只接受 `.lnk` `.exe` `.ico` `.dll` `.png` `.jpg` `.jpeg`。`.lnk` 额外返回 `detail`（结构见 [shortcut-lib.md](shortcut-lib.md) 的 `publicShortcutDetail`）。
+- 扫描范围：开始菜单（当前用户 + 所有用户）、桌面（当前用户 + 公共），深度上限 5 层，按文件名去重，按名称中文排序。`group` 取值 `桌面` / `所有用户` / `当前用户` / `商店应用`。
+- 除 `.lnk` 快捷方式外，还会通过 PowerShell `Get-StartApps` 枚举 Windows 商店应用（UWP/MSIX），它们的 `path` 使用 `shell:AppsFolder\<AUMID>` 格式，`group` 为 `商店应用`。
+- `icon` 只接受 `.lnk` `.exe` `.ico` `.dll` `.png` `.jpg` `.jpeg`。`.lnk` 额外返回 `detail`（结构见 [shortcut-lib.md](shortcut-lib.md) 的 `publicShortcutDetail`）。`shell:AppsFolder\` 路径返回空图标与基本 detail。
 - 传进来的 `path` 是**任意绝对路径**（不限于 `data/`），这是扫描用户开始菜单的必要代价；调用方必须来自本机界面。
 
 ### 4. 条目增删改
@@ -149,4 +158,6 @@
 | 2026-09-20 | 首次编写。冻结 17 条路由（含 `OPTIONS`）、8 MiB 请求上限、错误码约定、按 `kind` 分流的请求体。标注 `metadata`/`hide` 两个接口当前无调用方。 |
 | 2026-09-20 | 同步前端接入后的状态：`/api/items/metadata`（待补充归类，含 `newCategory` 内联新建）与 `/api/items/hide`（右键「忽略」）都已有调用方；改正 `reorder` 描述——它只更新传入 `ids` 里的条目，不再整段覆盖 `order`。 |
 | 2026-09-21 | 新增内置分类「文件夹」（`key: folder`，`kind` 仍是 `file`，`KINDS` 未变、`/api/items` 的 `kinds` 仍为四个值）；`readCatalog()` 增加内置分类补齐，于是 `categories` 会对已有 `catalog.json` 多出这一项。`/api/items/open` 的 `file` 分支明确支持目录（交给资源管理器打开）。 |
-| 2026-09-21 | 将内置「文档」与「文件夹」合并为「文件」（`key: file`）。`readCatalog()` 会将旧 `folder` 条目迁移到 `file`，删除旧分类，并忽略遗留的 `data/文件夹/` 空目录；`file` 打开逻辑不变，继续同时支持文件和目录。 |
+| 2026-09-21 | `/api/items/metadata` 多了一个调用方：**`M4` 的「合并包」**用它把条目移进包里（请求体 `{ id, title, description, tags, icon, target, browser, category }`）。语义没变——对**非收件箱**条目只改 `category`、不搬磁盘文件（所以包里的 `.lnk` 仍留在 `data/应用/`，`/api/items/open` 按分类 `kind` 打开，行为不变）。⚠️ 调用方注意：该接口会把 `description` / `tags` **整段覆盖**成请求体里的值，移进包时必须原样回传条目现有内容，否则会被清空。 |
+| 2026-09-21 | 新增 `POST /api/links/icon`：按用户输入的网址临时读取网页声明的 favicon（失败回退 `/favicon.ico`），受超时、跳转和体积限制；返回 data URL 给 M4 压缩后写入既有 `Item.icon`，不新增数据字段。 |
+| 2026-09-22 | 优化 `POST /api/links/icon` 的候选顺序：网页同时声明多种尺寸时，优先 `sizes` 更大、SVG 或 Apple Touch 图标，避免先取到 16px favicon 后被界面放大。接口字段与限制不变。 |

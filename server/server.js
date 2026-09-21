@@ -24,7 +24,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const os = require('node:os');
-const { spawn } = require('node:child_process');
+const { spawn, execFile } = require('node:child_process');
+const { promisify } = require('node:util');
 const { readShortcut, readIconDataUrl } = require('./shortcut.js');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -51,6 +52,7 @@ const BROWSERS = [
   { key: 'chromium', label: 'Chromium', paths: [['LOCALAPPDATA', 'Chromium\\Application\\chrome.exe'], ['ProgramFiles', 'Chromium\\Application\\chrome.exe']] }
 ];
 const BROWSER_KEYS = new Set(BROWSERS.map((entry) => entry.key));
+const execFileAsync = promisify(execFile);
 
 /** 分类注册表：kind 决定编辑器长什么样、扫描时归到哪、点击后怎么打开。 */
 const DEFAULT_CATEGORIES = [
@@ -384,6 +386,10 @@ function collectShortcuts() {
     }
   };
   for (const root of startMenuRoots()) walk(root, 0);
+  // 同时收集 Windows 商店应用（UWP/MSIX），它们没有 .lnk 快捷方式。
+  for (const uwp of collectUwpApps()) {
+    if (!found.has(uwp.name.toLowerCase())) found.set(uwp.name.toLowerCase(), uwp);
+  }
   const list = [...found.values()];
   // 归类到"程序 / 桌面"，并按名字排好，供前端搜索。
   for (const root of startMenuRoots()) {
@@ -393,6 +399,49 @@ function collectShortcuts() {
     }
   }
   return list.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'));
+}
+
+/**
+ * 收集 Windows 商店应用（UWP/MSIX）。
+ * 这些应用不在开始菜单目录里以 .lnk 形式存在，但可以通过 Get-StartApps 枚举。
+ * 返回格式与 collectShortcuts() 一致，path 使用 shell:AppsFolder\<AUMID> 格式。
+ */
+function collectUwpApps() {
+  const tmpFile = path.join(os.tmpdir(), `pwsh-uwp-${process.pid}-${Date.now()}.txt`);
+  try {
+    const safePath = tmpFile.replace(/'/g, "''");
+    const psCmd = 'Get-StartApps | ForEach-Object { $_.Name + "`t" + $_.AppID } | Out-File -FilePath \'' + safePath + '\' -Encoding utf8';
+    const result = require('node:child_process').spawnSync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', psCmd],
+      { timeout: 15000, windowsHide: true }
+    );
+    if (!result || result.status !== 0) return [];
+    // Out-File -Encoding utf8 写出带 BOM 的 UTF-8，Node.js 的 readFileSync('utf8') 能正确处理。
+    if (!fs.existsSync(tmpFile)) return [];
+    const text = fs.readFileSync(tmpFile, 'utf8').replace(/^\uFEFF/, '');
+    try { fs.unlinkSync(tmpFile); } catch { /* 清理失败无妨 */ }
+    const list = [];
+    const seen = new Set();
+    for (const line of text.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const tab = trimmed.lastIndexOf('\t');
+      if (tab < 1) continue;
+      const name = trimmed.slice(0, tab).trim();
+      const appId = trimmed.slice(tab + 1).trim();
+      // UWP 应用的 AppID 包含 '!'（格式：PackageFamilyName!AppName），且不是文件路径。
+      if (!appId.includes('!')) continue;
+      if (/^[A-Za-z]:[\\/]/.test(appId)) continue;
+      if (seen.has(appId)) continue;
+      seen.add(appId);
+      list.push({ name, path: `shell:AppsFolder\\${appId}`, group: '商店应用' });
+    }
+    return list;
+  } catch {
+    try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
+    return [];
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -483,6 +532,12 @@ function startDetached(target) {
   child.unref();
 }
 
+/** 启动 Windows 商店应用（UWP/MSIX），通过 shell:AppsFolder\<AUMID> 路径。 */
+function startUwp(aumid) {
+  const child = spawn('explorer.exe', [`shell:AppsFolder\\${aumid}`], { detached: true, stdio: 'ignore', windowsHide: true });
+  child.unref();
+}
+
 /** 新建分类：注册表加一条，同时在 data/ 下真的建出文件夹。 */
 function createCategory(catalog, input) {
   const label = String(input?.label || '').trim();
@@ -508,6 +563,121 @@ function createCategory(catalog, input) {
   return { category };
 }
 
+/* ---------------- 网页图标（仅按用户输入的网址临时读取，不落盘） ---------------- */
+const LINK_ICON_TIMEOUT = 6000;
+const LINK_ICON_MAX_BYTES = 512 * 1024;
+
+function linkIconCandidates(html, pageUrl) {
+  const candidates = [];
+  const links = String(html || '').match(/<link\b[^>]*>/gi) || [];
+  for (const tag of links) {
+    const rel = (tag.match(/\brel\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i) || []).slice(1).find(Boolean) || '';
+    if (!/(^|\s)(?:shortcut\s+)?icon(?:\s|$)|apple-touch-icon/i.test(rel)) continue;
+    const href = (tag.match(/\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i) || []).slice(1).find(Boolean);
+    if (!href) continue;
+    /* 同页通常既有 16px favicon，也有 180/192/512px 图标。优先高清声明，
+       不让小图标因为排在前面而被放大到卡片尺寸。 */
+    const sizes = (tag.match(/\bsizes\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i) || []).slice(1).find(Boolean) || '';
+    const type = (tag.match(/\btype\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i) || []).slice(1).find(Boolean) || '';
+    const dimensions = [...sizes.matchAll(/(\d+)\s*x\s*(\d+)/gi)].map((match) => Math.max(Number(match[1]), Number(match[2])));
+    const score = /\bany\b/i.test(sizes) || /svg/i.test(type)
+      ? 1000000 : Math.max(/apple-touch-icon/i.test(rel) ? 180 : 0, ...dimensions);
+    try { candidates.push({ url: new URL(href, pageUrl).href, score }); } catch {}
+  }
+  try {
+    const page = new URL(pageUrl);
+    candidates.push({ url: `${page.origin}/favicon.ico`, score: -1 });
+  } catch {}
+  const seen = new Set();
+  return candidates
+    .filter((candidate) => /^https?:\/\//i.test(candidate.url))
+    .sort((a, b) => b.score - a.score)
+    .filter((candidate) => !seen.has(candidate.url) && seen.add(candidate.url))
+    .map((candidate) => candidate.url);
+}
+
+async function readRemote(response, maxBytes) {
+  const declared = Number(response.headers.get('content-length') || 0);
+  if (declared > maxBytes) throw Error('图标文件太大。');
+  const reader = response.body?.getReader();
+  if (!reader) return Buffer.from(await response.arrayBuffer());
+  const chunks = [];
+  let size = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > maxBytes) {
+      await reader.cancel();
+      throw Error('图标文件太大。');
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks);
+}
+
+/* Node 默认自带的根证书在部分企业代理环境里不包含 Windows 证书库的根证书。
+   这里仅在校验证书链失败时，以 --use-system-ca 启一个极小的同版本 Node 子进程重试；
+   仍然严格校验 HTTPS，绝不通过 NODE_TLS_REJECT_UNAUTHORIZED=0 绕过校验。 */
+async function systemCaFetch(url, accept) {
+  const script = "const input=JSON.parse(process.argv[1]);const c=new AbortController();setTimeout(()=>c.abort(),6000);fetch(input.url,{redirect:'manual',signal:c.signal,headers:{Accept:input.accept,'User-Agent':'PersonalWorkbench/1.0'}}).then(async r=>{const body=Buffer.from(await r.arrayBuffer());process.stdout.write(JSON.stringify({status:r.status,headers:[...r.headers],body:body.toString('base64')}))}).catch(e=>{process.stderr.write(e.message);process.exit(1)});";
+  const input = JSON.stringify({ url, accept });
+  const { stdout } = await execFileAsync(process.execPath, ['--use-system-ca', '-e', script, input], { timeout: LINK_ICON_TIMEOUT + 1000, maxBuffer: LINK_ICON_MAX_BYTES * 2 });
+  const data = JSON.parse(stdout);
+  const body = Buffer.from(String(data.body || ''), 'base64');
+  return {
+    status: Number(data.status),
+    ok: Number(data.status) >= 200 && Number(data.status) < 300,
+    headers: new Headers(data.headers || []),
+    arrayBuffer: async () => body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength)
+  };
+}
+
+async function remoteGet(url, accept) {
+  let current = url;
+  for (let redirects = 0; redirects <= 3; redirects += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), LINK_ICON_TIMEOUT);
+    let response;
+    try {
+      response = await fetch(current, { redirect: 'manual', signal: controller.signal, headers: { Accept: accept, 'User-Agent': 'PersonalWorkbench/1.0' } });
+    } catch (error) {
+      const code = error?.cause?.code || '';
+      if (/VERIFY|CERT/i.test(code)) response = await systemCaFetch(current, accept);
+      else throw error;
+    } finally { clearTimeout(timer); }
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location');
+      if (!location) throw Error('网站跳转地址无效。');
+      current = new URL(location, current).href;
+      if (!/^https?:\/\//i.test(current)) throw Error('图标地址不是 HTTP 或 HTTPS。');
+      continue;
+    }
+    if (!response.ok) throw Error(`网站返回 ${response.status}。`);
+    return { response, url: current };
+  }
+  throw Error('网站跳转次数过多。');
+}
+
+async function fetchLinkIcon(value) {
+  const pageUrl = normalizeUrl(value);
+  if (!pageUrl) throw Error('请输入有效的 http 或 https 网址。');
+  const page = await remoteGet(pageUrl, 'text/html,application/xhtml+xml');
+  const pageType = String(page.response.headers.get('content-type') || '').toLowerCase();
+  const candidates = pageType.includes('html') ? linkIconCandidates((await readRemote(page.response, 256 * 1024)).toString('utf8'), page.url) : linkIconCandidates('', page.url);
+  for (const candidate of candidates) {
+    try {
+      const image = await remoteGet(candidate, 'image/avif,image/webp,image/png,image/svg+xml,image/x-icon,image/*;q=0.8,*/*;q=0.5');
+      const mime = String(image.response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+      if (!mime.startsWith('image/')) continue;
+      const bytes = await readRemote(image.response, LINK_ICON_MAX_BYTES);
+      if (!bytes.length) continue;
+      return { icon: `data:${mime};base64,${bytes.toString('base64')}`, source: candidate };
+    } catch {}
+  }
+  throw Error('没有找到可用的网站图标。');
+}
+
 const server = http.createServer(async (request, response) => {
   if (request.method === 'OPTIONS') return send(response, 204, {});
   const url = new URL(request.url, `http://${request.headers.host}`);
@@ -523,6 +693,15 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === 'GET' && url.pathname === '/api/browsers') {
       return send(response, 200, { browsers: detectBrowsers() });
+    }
+
+    if (request.method === 'POST' && url.pathname === '/api/links/icon') {
+      const input = await readBody(request);
+      try {
+        return send(response, 200, await fetchLinkIcon(input.url));
+      } catch (error) {
+        return send(response, 400, { error: error.message || '读取网站图标失败。' });
+      }
     }
 
     if (request.method === 'POST' && url.pathname === '/api/scan') {
@@ -612,6 +791,11 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === 'GET' && url.pathname === '/api/shortcuts/icon') {
       const target = String(url.searchParams.get('path') || '');
+      // Windows 商店应用没有真实的快捷方式文件，返回空图标和基本信息。
+      if (target.startsWith('shell:AppsFolder\\')) {
+        const aumid = target.slice('shell:AppsFolder\\'.length);
+        return send(response, 200, { icon: '', detail: { target, arguments: '', iconLocation: '' } });
+      }
       if (!target || !fs.existsSync(target)) return send(response, 404, { error: '文件不存在。' });
       const extension = path.extname(target).toLowerCase();
       if (!['.lnk', '.exe', '.ico', '.dll', '.png', '.jpg', '.jpeg'].includes(extension)) {
@@ -671,12 +855,20 @@ const server = http.createServer(async (request, response) => {
         if (browser) item.browser = browser;
       } else if (category.kind === KIND_APP) {
         const sourcePath = String(input.path || input.target || '').trim();
-        if (!sourcePath || !fs.existsSync(sourcePath)) return send(response, 400, { error: '找不到该程序或快捷方式文件。' });
-        item._folder = category.folder;
-        applyShortcutMetadata(item, sourcePath, { copy: true });
-        delete item._folder;
-        if (!item.target) item.target = sourcePath;
-        if (!item.title) item.title = path.parse(sourcePath).name;
+        // Windows 商店应用：路径以 shell:AppsFolder\ 开头，不需要复制 .lnk。
+        if (sourcePath.startsWith('shell:AppsFolder\\')) {
+          const aumid = sourcePath.slice('shell:AppsFolder\\'.length);
+          item.target = sourcePath;
+          item.uwpAppId = aumid;
+          if (!item.title) item.title = input.title || aumid.split('!')[0] || '商店应用';
+        } else {
+          if (!sourcePath || !fs.existsSync(sourcePath)) return send(response, 400, { error: '找不到该程序或快捷方式文件。' });
+          item._folder = category.folder;
+          applyShortcutMetadata(item, sourcePath, { copy: true });
+          delete item._folder;
+          if (!item.target) item.target = sourcePath;
+          if (!item.title) item.title = path.parse(sourcePath).name;
+        }
       } else {
         const targetPath = String(input.target || '').trim();
         if (targetPath) {
@@ -837,6 +1029,15 @@ const server = http.createServer(async (request, response) => {
         if (!/^https?:\/\//i.test(item.target || '')) return send(response, 400, { error: '这个网址无效。' });
         target = item.target;
       } else if (kind === KIND_APP) {
+        // Windows 商店应用：通过 AUMID 启动，不走文件系统。
+        if (item.uwpAppId) {
+          startUwp(item.uwpAppId);
+          item.openCount = Number(item.openCount || 0) + 1;
+          item.lastOpenedAt = new Date().toISOString();
+          item.updatedAt = item.lastOpenedAt;
+          writeCatalog(catalog);
+          return send(response, 200, { ok: true });
+        }
         // 优先用复制进工作台的 .lnk：启动参数、工作目录、管理员标记都原样保留。
         const shortcutPath = itemFilePath(item.sourcePath);
         target = shortcutPath && fs.existsSync(shortcutPath) ? shortcutPath : (itemAbsolutePath(item) || '');
